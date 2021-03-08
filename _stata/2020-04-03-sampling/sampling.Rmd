@@ -1,0 +1,429 @@
+---
+title: "Lecture 3: Sampling and Confidence Intervals"
+description: |
+  Using R to generate random numbers, compute means and standard deviations, perform Student's t-tests and calculate confidence intervals.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2020-04-03
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+---
+
+This worksheet is based on the third lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, eval = FALSE}
+## Convert Section 4 data from Stata format to universal CSV.
+bpwide <- foreign::read.dta('http://www.stata-press.com/data/r9/bpwide.dta')
+write.csv(bpwide, 'bpwide.csv', row.names = FALSE)
+```
+
+## Generating random samples
+
+In this part of the practical, you are going to repeatedly generate random samples of varying size from a population with known mean and standard deviation. You can then see for yourselves how changing the sample size affects the variability of the sample mean.
+
+### Start a new R session.
+
+In RStudio: go to *Session > New Session*, or clear the current working environment with *Session > Clear Workspace...*.
+
+In the original RGui, use *Misc > Remove all objects*.
+
+Or in any console just type `rm(list = ls())`.
+
+You could also create a new R Markdown document.
+
+### Create a variable called `n` that is equal to 5.
+
+```{r}
+n <- 5
+```
+
+### Draw a sample vector, `x`, of length `n` from a standard normal distribution.
+
+The *standard* normal is a normal distribution with mean 0 and standard deviation 1. The `rnorm` command draws random normal samples of a specified size:
+
+```{r}
+x <- rnorm(n, mean = 0, sd = 1)
+```
+
+In fact, in R the default arguments for `rnorm` are `mean = 0` and `sd = 1`, so we can implicitly draw from the standard normal distribution with the more concise syntax:
+
+```{r}
+x <- rnorm(n)
+```
+
+### Calculate the sample mean of the vector `x`.
+
+```{r}
+mean(x)
+```
+
+Equivalently,
+
+```{r}
+sum(x) / length(x)
+sum(x) / n
+```
+
+<!--
+## Create a new data frame and call it `sample_means`.
+
+You can make an empty data frame with `sample_means <- data.frame()` and populate it with values later, or you can wait until you have something to store, first.
+
+```{r echo = FALSE}
+sample_means <- data.frame()
+```
+-->
+
+### Repeat steps 1--4 ten times and record the results as the first column of a data frame called `sample_means`.
+
+You can save yourself from mashing the same command in multiple times, and in any case you should never enter data in manually if you can avoid it. You can repeat a non-deterministic function using the function `replicate`.
+So to draw the ten samples, we could write
+
+```{r}
+replicate(10, rnorm(n))
+```
+
+But we are only interested in the ten means rather than all 50 individual values, so sample and summarise in a single step by typing
+
+```{r}
+replicate(10, mean(rnorm(n)))
+```
+
+To store such a vector as a column called `n_5` in a new data frame, we can run
+
+```{r}
+sample_means <- data.frame(n_5 = replicate(10, mean(rnorm(n))))
+```
+
+Of course, you can name the columns whatever you like.
+
+### Now repeat the procedure a further ten times, but in step 2, set the sample size to 25. Store the result.
+
+An efficient way to tackle this task could be to run code similar to the following:
+
+```{r}
+n <- 25
+sample_means$n_25 <- replicate(10, mean(rnorm(n)))
+```
+
+### Add a third column to your data frame corresponding to the means of ten vectors of sample size `n` = 100.
+
+As before:
+
+```{r}
+n <- 100
+sample_means$n_100 <- replicate(10, mean(rnorm(n)))
+```
+
+The resulting data frame might look something like:
+
+```{r}
+sample_means
+```
+
+*Optional.* If you consider yourself to be an annoying over-achiever, you can complete all of the above tasks with a single command, for example
+
+```{r, eval = FALSE}
+sample_means <- as.data.frame(
+  sapply(c(5, 25, 100),
+         function(n) replicate(10, mean(rnorm(n))))
+)
+```
+
+*Optional.* Furthermore, savvy statisticians might recognise that the sample mean of a normally distributed random variable has distribution
+\[\hat\mu \sim N(0, \sigma^2/n) \]
+so you can sample the means directly rather than generating the varying-length vectors.
+
+```{r, eval = FALSE}
+sample_means <- data.frame(
+  n_5   = rnorm(10, sd = 1 / sqrt(5)),
+  n_25  = rnorm(10, sd = 1 / sqrt(25)),
+  n_100 = rnorm(10, sd = 1 / sqrt(100))
+)
+```
+
+### Now calculate the mean and standard deviation of the values in each column.
+
+Everything is in a data frame, so finding summary statistics for each column is straightforward.
+For each column, we can call something like
+
+```{r}
+mean(sample_means$n_5)
+sd(sample_means$n_5)
+```
+
+But to save time typing that out three times, we can calculate for all the columns at once:
+
+```{r}
+apply(sample_means, MARGIN = 2, FUN = mean)
+apply(sample_means, MARGIN = 2, FUN = sd)
+```
+
+where the second argument, `2`, means we are calculating the means of the second dimension (the columns), rather than of the first dimension (the rows) of our data frame.
+
+A shorthand for calculating the means is:
+
+```{r}
+colMeans(sample_means)
+```
+
+and while there isn't a function called `colVars` or `colSDs`, you can compute the variance--covariance matrix and read the numbers off the diagonal:
+
+```{r}
+cov(sample_means)
+
+# Just the diagonal entries
+sqrt(diag(cov(sample_means)))
+```
+
+If you prefer **dplyr**:
+
+```{r, message = FALSE}
+library(dplyr)
+summarise_all(sample_means, mean)
+summarise_all(sample_means, sd)
+```
+
+And finally **data.table**:
+
+```{r}
+library(data.table)
+setDT(sample_means)
+sample_means[, .(n = names(sample_means),
+                 mean = sapply(.SD, mean),
+                 sd = sapply(.SD, sd))]
+```
+
+## Means
+
+*This section is bookwork and does not require R or Stata.*
+
+If the standard deviation of the original distribution is $\sigma$, then the standard error of the sample mean is $\sigma/\sqrt{n}$, where $n$ is the sample size.
+
+1. If the standard deviation of measured heights is 9.31 cm, what will be the standard error of the mean in:
+    i. a sample of size 49?
+    ii. a sample of size 100?
+    
+2. Imagine we only had data on a sample of size 100, where the sample mean was 166.2 cm and the sample standard deviation was 10.1 cm.
+    i. Calculate the standard error for this sample mean (using the sample standard deviation as an estimate of the population standard deviation).
+    ii. Calculate the interval ranging 1.96 standard errors either side of the sample
+mean.
+
+3.  Imagine we only had data on a sample size of 36 where the sample mean height was 163.5 cm and the standard deviation was 10.5cm.
+    i. Within what interval would you expect about 95% of heights from this
+population to lie (the reference range)?
+    ii. Calculate the 95% confidence interval for the sample mean.
+
+4. Figure \@ref(fig:hist-women) is a histogram of measured weight in a sample of 100 individuals.
+    i. Would it be better to use the mean and standard deviation or the median and interquartile range to summarise these data?
+    ii. If the mean of the data is 69.69 kg with a standard deviation of 12.76 kg, calculate a 95% confidence interval for the mean.
+    iii. Why is it not sensible to calculate a 95% reference range for these data?
+
+```{r hist-women, fig.cap = 'Weights in a random sample of 100 women', echo = FALSE}
+set.seed(2021)
+weights <- local({
+  weight <- rgamma(100, 10, 1)
+  weight <- (weight - mean(weight)) / sd(weight)
+  weight <- weight * 12.76
+  weight <- weight + 69.69
+  data.frame(weight)
+})
+library(ggplot2)
+ggplot(weights) +
+  aes(weight) +
+  geom_histogram(bins = 10, colour = 'tomato2', fill = 'tomato2', alpha = .5) +
+  labs(x = 'weight now (kg)') +
+  theme_classic()
+```
+
+## Proportions
+
+*This section is bookwork and does not require R or Stata.*
+
+Again using our height and weight dataset of 412 individuals, 234 (56.8%) are women and 178 (43.2%) are men.
+
+If we take a number of smaller samples from this population, the proportion of women will vary, although they will tend to be scattered around 57%.
+Figure \@ref(fig:hist-prop) represents 50 samples, each of size 40.
+
+```{r hist-prop, fig.cap = 'Proportion of women in 50 samples of size 40', echo = FALSE}
+ggplot(data.frame(prop = rbinom(50, 40, 234 / 412) / 40)) +
+  aes(prop) +
+  geom_histogram(bins = 15, colour = 'tomato2', fill = 'tomato2', alpha = .5) +
+  coord_cartesian(xlim = c(0, 1)) +
+  theme_classic()
+```
+
+1. What would you expect to happen if the sample sizes were bigger, say $n=100$?
+
+2. In a sample of 40 individuals from a larger population, 25 are women.
+Calculate a 95% confidence interval for the proportion of women in the population.
+
+*Note.* When sample sizes are small, the use of standard errors and the normal distribution does not work well for proportions.
+This is only really a problem if $p$ (or $(1-p)$) is less than $5/n$ (i.e. there are fewer than 5 subjects in one of the groups).
+
+3. From a random sample of 80 women who attend a general practice, 18 report a previous history of asthma.
+    i. Estimate the proportion of women in this population with a previous history of asthma, along with a 95% confidence interval for this proportion.
+    ii. Is the use of the normal distribution valid in this instance?
+    
+4. In a random sample of 150 Manchester adults it was found that 58 received or needed to receive treatment for defective vision.
+Estimate:
+    i. the proportion of adults in Manchester who receive or need to receive treatment for defective vision,
+    ii. a 95% confidence interval for this proportion.
+
+## Confidence intervals in R
+
+Download the [`bpwide.csv`](bpwide.csv) dataset.
+
+Load the blood pressure data in its wide form into R with the command
+
+```{r}
+bpwide <- read.csv('bpwide.csv')
+```
+
+This is fictional data concerning blood pressure before and after a particular intervention.
+
+### Use an appropriate visualisation to see if the variable `bp_before` is normally distributed. What do you think?
+
+The original Stata solution calls for a histogram, for example:
+
+```{r hist-bp}
+with(bpwide, hist(bp_before, col = 'steelblue'))
+```
+
+However, a kernel density plot may be a slightly better way of visualising the distribution.
+
+```{r denisty-bp}
+plot(density(bpwide$bp_before), main = 'Density plot')
+```
+
+The question, however, asked for "an appropriate visualisation" to determine if the variable is normally distributed.
+You might like to think that you can tell if a curve is bell-shaped, but this is not a reliable way of answering the question.
+A more appropriate visualisation is a *quantile--quantile* plot, where we can compare the sample quantiles of the observed data with the theoretical quantiles of a normal distribution.
+
+Now you don't need to remember the ideal shape of a bell curve---just look at the points and see if they lie close to the line or not.
+
+```{r qqplot-bp}
+qqnorm(bpwide$bp_before)
+qqline(bpwide$bp_before)
+```
+
+There is a slight positive (right) skew.
+
+### Create a new variable to measure the change in blood pressure.
+
+You can create a standalone variable:
+
+```{r}
+bp_diff <- with(bpwide, bp_after - bp_before)
+```
+
+Or, since it is of the same length as `bp_after` and `bp_before`, you can store it as a new column in the `bpwide` data frame.
+
+```{r}
+bpwide <- transform(bpwide, bp_diff = bp_after - bp_before)
+```
+
+What is the mean change in blood pressure?
+
+```{r}
+mean(bp_diff)
+mean(bpwide$bp_diff)
+```
+
+### Compute a confidence interval for the change in blood pressure.
+
+As we are looking at a difference in means, we compare the sample blood pressure difference to a Student's _t_ distribution with $n - 1$ degrees of freedom, where $n$ is the number of patients.
+
+*By hand*: the formula for a two-sided $(1-\alpha)$ confidence interval for a sample of size $n$ is
+\[Pr\left(\bar{X}_n - t_{n-1}(\alpha/2) \frac{S_n}{\sqrt n} < \mu < \bar{X} + t_{n-1}(\alpha/2) \frac{S_n}{\sqrt n}\right) = \alpha \]
+
+In R, the `q` family of functions returns quantiles of distributions (just as we have seen the `r` family draws random samples from those distributions).
+So `qnorm` finds the quantiles of the normal distribution, `qt` the quantiles of the Student's *t*-distribution, and so on.
+We can use it to retrieve the 2.5% and 97.5% quantiles of the *t* distribution with $n-1$ degrees of freedom and then plug them into the above formula, like so:
+
+```{r}
+n <- length(bp_diff) # or nrow(bpwide)
+mean(bp_diff) + qt(c(.025, .975), df = n - 1) * sd(bp_diff) / sqrt(n)
+```
+
+Or, using the built-in `t.test` function we get the same result:
+
+```{r}
+with(bpwide, t.test(bp_before, bp_after, paired = TRUE))
+```
+
+As the 95% confidence interval does not contain zero, we may reject the hypothesis that, on average, there was no change in blood pressure.
+
+Notice that the paired `t.test` did not require us to calculate `bp_diff`.
+But we can pass the same to `t.test` for a one-sample test and it will compute exactly the same test statistic, because testing whether two variables are equal is the same thing as testing whether their paired difference is zero.
+
+```{r}
+t.test(bp_diff)
+```
+
+### Look at the histogram of changes in blood pressure using the command `hist`.
+
+```{r}
+hist(bp_diff, col = 'steelblue')
+```
+
+You could also try a kernel density plot, or even an old-fashioned stem and leaf diagram:
+
+```{r}
+stem(bp_diff)
+```
+
+Does this confirm your answer to the previous question?
+
+### Create a new variable to indicate whether blood pressure went up or down in a given subject.
+
+```{r}
+down <- with(bpwide, bp_after < bp_before)
+```
+
+Use the `table` command to see how many subjects showed a decrease in blood pressure.
+
+```{r}
+table(down)
+```
+
+To get proportions, you can use `prop.table`, like so:
+
+```{r}
+prop.table(table(down))
+```
+
+But it is just as quick to take the mean of the binary indicators (as `TRUE == 1` and `FALSE == 0`):
+
+```{r}
+mean(down)
+mean(!down) # negation
+```
+
+### Create a confidence interval for the proportion of subjects showing a decrease in blood pressure.
+
+*Note.*
+This would rarely be justified.
+It is a good way to throw away a lot of continuous data, ignoring effect sizes.
+Moreover, one can easily flip the apparent sign of the effect by doing this, and draw the wrong conclusion about the data.
+
+Nonetheless, if the purpose of the exercise is to make a Clopper--Pearson binomial confidence interval (as Stata does), then we have:
+
+```{r}
+binom.test(sum(down), n)
+```
+

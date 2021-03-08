@@ -1,0 +1,58 @@
+---
+title: Anscombe's quartet
+date: 15 January 2021
+author: David Selby
+output:
+  html_document:
+    df_print: kable
+---
+
+[From Wikipedia](https://en.wikipedia.org/wiki/Anscombe%27s_quartet)
+
+## Introduction
+
+**Anscombe's quartet** comprises four data sets that have nearly identical _simple descriptive statistics_, yet have very different _distributions_ and appear very different when graphed.
+
+Each dataset consists of eleven $(x,y)$ points.
+They were constructed in 1973 by the statistician Francis Anscombe to demonstrate both the importance of graphing data before analysing it and the effect of outliers and other influential observations on statistical properties. He described the article as being intended to counter the impression among statisticians that "numerical calculations are exact, but graphs are rough."[^1]
+
+![Plot of Anscombe's quartet](https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Anscombe%27s_quartet_3.svg/1920px-Anscombe%27s_quartet_3.svg.png)
+
+Here are the data in a single table:
+
+```{r}
+anscombe
+```
+
+Anscombe's quartet dataset is built into R and can be accessed using the command
+`data(anscombe)`.
+
+## Our own plot of the quartet
+
+```{r}
+par(mfrow = c(2, 2))
+plot(y1 ~ x1, data = anscombe, pch = 16)
+plot(y2 ~ x2, data = anscombe, pch = 16)
+plot(y3 ~ x3, data = anscombe, pch = 16)
+plot(y4 ~ x4, data = anscombe, pch = 16)
+```
+
+Or using `ggplot2`:
+
+```{r}
+library(ggplot2)
+ggplot(Tmisc::quartet) +
+  aes(x, y) +
+  geom_point() +
+  facet_wrap(~set)
+```
+
+A linear regression model of $y$ on \(x\) might take the form
+\[
+y_i = \beta_0 + \beta_1 x_i + \epsilon_i,
+\]
+where \(\epsilon \sim \mathcal{N}(0, \sigma^2)\).
+
+### References
+
+[^1]: Anscombe, F. J. (1973). "Graphs in Statistical Analysis". *American Statistician*. 27 (1): 17–-21. doi:10.1080/00031305.1973.10478966.

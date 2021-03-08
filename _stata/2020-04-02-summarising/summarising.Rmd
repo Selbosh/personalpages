@@ -1,0 +1,581 @@
+---
+title: "Lecture 2: Summarising Data"
+description: |
+  Obtaining numerical and visual summaries of datasets in R. An introduction to the split-apply-combine approach to data analysis, using either base functions or the packages dplyr and data.table.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2020-04-02
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: yes
+    toc_depth: 2
+preview: summarising_files/figure-html5/ggplot-qqplot-age-1.png
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This worksheet is based on the second lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+To distribute the `pimax.dta` and `htwt.dta` files in a more universal format, we use the **foreign** package to convert them from the Stata binary format into data frames, then save them as CSV.
+
+```{r convert-stata-dta, eval = FALSE}
+datadir <- 'http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/2_summarizing_data/data/'
+
+library(foreign)
+pimax <- read.dta(file.path(datadir, 'pimax.dta'))
+htwt <- read.dta(file.path(datadir, 'htwt.dta'))
+
+write.csv(pimax, 'pimax.csv', row.names = FALSE)
+write.csv(htwt, 'htwt.csv', row.names = FALSE)
+```
+
+You don't need to do this as I've converted the files for you:
+
+- [`pimax.csv`](pimax.csv)
+- [`htwt.csv`](htwt.csv)
+
+## Hand calculations
+
+This section gives you the chance to do some calculations for yourself and see how the
+concepts we saw in the lecture work in real life.
+Once upon a time, these calculations
+would have been done by hand: I’m sure you could do them in your head, but getting
+~~Stata~~ R to do them for you will be quicker.
+However, we are going to go through the steps that you would have to perform if you were calculating them by hand, so that you can see how it works.
+In practice, you would simply ask ~~Stata~~ R to churn the results out rather than calculating them this way.
+
+Load in the **PImax** dataset with the command
+
+```{r import-pimax}
+pimax <- read.csv('pimax.csv')
+```
+
+This dataset contains a single variable, `pimax`, which is the maximal static inspiratory
+pressure, measured in cm H~2~O, of 25 cystic fibrosis patients.
+
+Look at the data in the spreadsheet view using the command `View`, or, in RStudio, by clicking on the `pimax` Data variable in the Environment pane. You can also get a quick preview of the data set, its size and data types using the `str` (structure) command, or just print the first few rows using `head(pimax)`.
+
+```{r}
+str(pimax)
+```
+
+Another way of getting a quick summary is the `summary` function:
+
+```{r}
+summary(pimax)
+```
+
+### What is the median value of maximal static inspiratory pressure?
+
+You might notice that a few common summary statistics are already returned by the `summary` function, but you can compute individual ones directly:
+
+```{r}
+median(pimax$pimax)
+```
+
+If you don't like the dollar sign (`$`) syntax for selecting columns, you can access variables within a dataframe implicitly by wrapping the expression in `with()` (a little bit like Stata's `use`, but just for one expression).
+In this case:
+
+```{r}
+with(pimax, median(pimax))
+```
+
+### What are the lower and upper quartiles?
+
+```{r}
+quantile(pimax$pimax, c(.25, .75))
+```
+
+### Now we will calculate the mean.
+
+```{r}
+mean(pimax$pimax)
+```
+
+Whereas Stata's `sum` function computes a running (cumulative) sum (for some reason), R returns only the scalar total.
+
+If you _did_ want cumulative sums and means you could use the `cumsum` function.
+There is no `cummean` function in base R but you can easily compute it yourself.
+The R equivalent of Stata's
+
+```stata
+gen n = _n
+gen sum = sum(pimax)
+gen mean = sum/n
+```
+
+is something like the following:
+
+```{r}
+transform(pimax, cummean = cumsum(pimax) / seq_along(pimax))
+```
+
+where `seq_along(x)` is just another way of writing `1:length(x)`.
+
+The function `transform` is used for adding and modifying columns in the data frame that is specified by the first argument (i.e. the data frame `pimax`).
+But you can equally compute the same quantity as a standalone vector without adding it as a column to the original dataset:
+
+```{r}
+with(pimax, cumsum(pimax) / seq_along(pimax))
+```
+
+This particular example is a little bit confusing because the data frame and the main column of interest are both called the same name `pimax`.
+
+For this particular example, it's not clear why you'd actually want to calculate a running sum or mean, however.
+
+### Calculate the standard deviation.
+
+```{r}
+sd(pimax$pimax)
+```
+
+Or, manually,
+
+```{r}
+with(pimax,
+  sqrt( sum((pimax - mean(pimax))^2) / length(pimax) )
+)
+```
+
+If the above expression looks a bit unwieldy, you can break it into steps as in the original Stata example.
+
+```{r}
+with(pimax, {
+  mean <- mean(pimax)
+  n <- length(pimax)
+  diff <- pimax - mean
+  diff2 <- diff^2  # or diff * diff
+  variance <- sum(diff2) / n
+  sqrt(variance)
+})
+```
+
+Why are these answers slightly different to the value returned by `sd()` above?
+
+*Hint:* check the 'Details' section in [`help(sd)`](https://stat.ethz.ch/R-manual/R-patched/library/stats/html/sd.html).
+
+## Summarising data in R
+
+Read the CSV file [`htwt.csv`](htwt.csv) by typing
+
+```{r}
+htwt <- read.csv('htwt.csv')
+```
+
+This file includes two BMI values: `bmi`, which was based on measured data and `bmirep`, which was based on reported data.
+
+If you didn't want to save the CSV file to your desktop, you could instead read it directly from the web:
+
+```{r, eval = FALSE}
+htwt <- read.csv('http://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-02-summarising/htwt.csv')
+```
+
+### Examine the distribution of measured BMI scores
+
+One way to visualise a distribution of values might be by displaying a histogram, which (with base R graphics) you can achieve via the call
+
+```{r hist-bmi}
+hist(htwt$bmi)
+```
+
+Or, using the popular **ggplot2** visualisation package:
+
+```{r ggplot-hist-bmi}
+library(ggplot2)
+ggplot(htwt) + aes(x = bmi) +
+  geom_histogram(bins = 20)
+```
+
+Another good way of showing the distribution is via a kernel density plot (which is essentially a special kind of histogram).
+Unlike Stata, R is less forgiving of missing values (`NA`s) and will throw warnings or errors if you have not explicitly removed or specified how to deal with them.
+
+```{r density-bmi, error = TRUE, warning = TRUE}
+plot(density(htwt$bmi), main = 'Distribution of measured BMI values')
+plot(density(htwt$bmi, na.rm = TRUE),
+     main = 'Distribution of measured BMI values (excluding missing)')
+ggplot(htwt) + aes(bmi) + geom_density() +
+  ggtitle('Distribution of measured BMI values')
+```
+
+### Basic summary functions
+
+This function was mentioned briefly in the previous exercise.
+
+Calculate summary measures of the entire `htwt` dataset by simply passing the name of the dataframe:
+
+```{r}
+summary(htwt)
+```
+
+Or you can hone in on a specific column, such as the measured `bmi`:
+
+```{r}
+summary(htwt$bmi)
+```
+
+Write down the mean BMI.
+You can refer to the `summary` output above, or else compute the mean directly.
+
+```{r}
+mean(htwt$bmi, na.rm = TRUE)
+```
+
+Next, write down the median BMI.
+Again, you can use `summary`, or calculate it explicitly.
+
+```{r}
+median(htwt$bmi, na.rm = TRUE)
+```
+
+What are the lower and upper quartiles of the data?
+These fairly common statistics are also given in the default summary output.
+To compute them yourself, use the `quantile` function and specify which quantile(s) you would like.
+
+```{r}
+quantile(htwt$bmi, c(.25, .75), na.rm = TRUE)
+```
+
+## Summarising by group
+
+### Numerical summaries
+
+To summarise the data separately for each sex, there are several approaches.
+For a single summary statistic you can use the base R command
+
+```{r}
+aggregate(bmi ~ sex, data = htwt, FUN = mean)
+aggregate(bmi ~ sex, data = htwt, FUN = median)
+```
+
+repeating for the quartiles, standard deviations and so on.
+
+Or you can use the `apply` family of functions to run `summary` on each group in the data.
+The `by` function (also known as `tapply`) has the following syntax.
+
+```{r}
+by(htwt$bmi, htwt$sex, FUN = summary)
+```
+This means "apply the function `summary` to the variable `bmi`, divided according to `sex`".
+Using the same syntax we can calculate a single value such as a median for each group.
+(Here I use `with` to avoid writing `htwt$` twice.)
+
+```{r}
+with(htwt, by(bmi, sex, median, na.rm = TRUE))
+```
+
+However, most R users use packages such as **dplyr** or **data.table** for these common data analysis tasks, as they are slightly easier to use and more flexible.
+These packages will be introduced in later sections.
+
+### Graphical summaries
+
+The distributions for the two sexes can be neatly compared graphically using box plots.
+The command to do this in base R is
+
+```{r boxplot-bmi, fig.height = 6, fig.width = 6}
+boxplot(bmi ~ sex, data =  htwt)
+```
+
+or, in **ggplot2**:
+
+```{r ggplot-boxplot-bmi, fig.height = 6, fig.width = 6}
+library(ggplot2)
+ggplot(htwt) + aes(sex, bmi) + geom_boxplot()
+```
+
+However you can get a more granular look at the distribution with histograms or kernel density plots, and **ggplot2** makes it easy to combine these superimposed on the same axes, or as _small multiples_ (a lattice of separate plots).
+
+```{r grouped-density-bmi, fig.width = 6}
+# Superimposed
+ggplot(htwt) +
+  aes(bmi, fill = sex) +
+  geom_density(alpha = 0.5) + # "alpha" means the opacity
+  ggtitle('Distribution of reported BMI, by sex')
+
+# Stacked (harder to interpret)
+ggplot(htwt) +
+  aes(bmi, fill = sex) +
+  geom_histogram(position = 'stack') +
+  ggtitle('Distribution of reported BMI, by sex')
+
+# Small multiples
+ggplot(htwt) +
+  aes(bmi, fill = sex) +
+  geom_density(alpha = 0.5) +
+  facet_grid(sex ~ .) +
+  ggtitle('Distribution of reported BMI, by sex')
+
+# Small multiples (specify `group` else it will try to stack)
+ggplot(htwt) +
+  aes(bmi, fill = sex, group = sex) +
+  geom_histogram() +
+  facet_grid(sex ~ .) +
+  ggtitle('Distribution of reported BMI, by sex')
+```
+
+## Split-apply-combine with **dplyr**
+
+These packages can be used to produce summary statistics, but they are much more flexible and powerful than the `aggregate` and `apply` commands from base R.
+They also tend to have more consistent syntax.
+
+For example, in **dplyr**, the following gives the mean and SD of BMI.
+
+```{r, message = FALSE}
+library(dplyr)
+summarise(htwt,
+          mean = mean(bmi, na.rm = TRUE),
+          sd = sd(bmi, na.rm = TRUE))
+```
+
+Importantly, there is a `group_by` command, which enables you to split the data by subgroups, apply functions to each subset and then combine the results.
+
+```{r}
+htwt %>%
+  group_by(sex) %>%
+  filter(!is.na(bmi)) %>%
+  summarise(mean = mean(bmi),
+            sd = sd(bmi))
+```
+
+(Here we also use the `filter` command to exclude those rows where `bmi` is `NA`. This is equivalent to setting the argument `na.rm = TRUE` in `mean` and `sd` calls.)
+
+The _pipe_ operator, `%>%` is just a way of passing the output of one function to the first argument of another, to avoid death by nested brackets.
+That is,
+
+```r
+x %>% mean(na.rm = TRUE)
+```
+is just another way of writing
+
+```r
+mean(x, na.rm = TRUE)
+```
+
+### Compute the mean and standard deviation of height and weight (as measured by the nurse) for each sex.
+
+Use **dplyr**'s `group_by` and `summarise` functions.
+(If you have forgotten the names of the variables to use for this, try typing `str(htwt)` or `colnames(htwt)`.)
+
+```{r}
+htwt %>%
+  group_by(sex) %>%
+  summarise(mean_height = mean(nurseht, na.rm = T),
+            sd_height = sd(nurseht, na.rm = T),
+            mean_weight = mean(nursewt, na.rm = T),
+            sd_weight = sd(nursewt, na.rm = T))
+```
+
+Another way avoids typing the same code twice, since we're applying `mean` and `sd` to the same columns and with the same arguments.
+
+```{r}
+htwt %>%
+  select(sex, nurseht, nursewt) %>%
+  group_by(sex) %>%
+  summarise_all(list(mean = mean, sd = sd), na.rm = TRUE)
+```
+
+Finally, an advanced approach reshapes the data and stores it in a 'long' format.
+Sometimes this structure is useful for subsequent analyses, or for fitting lots of variables into a table for publication (where a wide table might not fit on the page).
+
+```{r}
+htwt %>%
+  select(nurseht, nursewt, sex) %>%
+  tidyr::pivot_longer(-sex, names_to = 'measure') %>%
+  filter(!is.na(value)) %>%
+  group_by(measure, sex) %>%
+  summarise(mean = mean(value), sd = sd(value))
+```
+
+## Split-apply-combine with **data.table**
+
+An alternative to **dplyr** is **data.table**, which can do the same thing, but with a different syntax.
+The package **data.table** is an extension to R's default `data.frame` structures, which makes filtering, grouping and manipulating tabular data easier.
+
+The format is `DT[filter, compute, group]`, i.e. the first argument in the square brackets determines which rows to include, the second determines which columns to select or which summary statistics to compute, and the last argument determines grouping variables.
+
+```{r, message = FALSE}
+library(data.table)
+setDT(htwt) # convert from data.frame to data.table
+htwt[!is.na(bmi), .(mean = mean(bmi), median = median(bmi), sd = sd(bmi)), by = sex]
+```
+
+### Compute the mean and standard deviation of height and weight (as measured by the nurse) for each sex.
+
+Let's calculate the same numerical summaries by group, but this time using the **data.table** package.
+
+```{r}
+setDT(htwt)
+htwt[, .(mean_height = mean(nurseht, na.rm = T),
+         sd_height   = sd(nurseht, na.rm = T),
+         mean_weight = mean(nursewt, na.rm = T),
+         sd_weight   = sd(nursewt, na.rm = T)),
+     by = sex]
+```
+
+The **data.table** equivalent to `dplyr::summarise_all` (see previous section) is to use the `.SD` ('Subset of Data') and `.SDcols` abbreviations, and loop over the columns in the table.
+
+```{r}
+variable <- c(nurseht = 'height', nursewt = 'weight') # column labels
+htwt[,
+     .(variable,
+       mean = sapply(.SD, mean, na.rm = TRUE),
+       sd = sapply(.SD, sd, na.rm = TRUE)),
+     .SDcols = names(variable),
+     by = sex]
+```
+Here `sapply` is a base function that means 'loop over a variable, apply a function and simplify the result'.
+
+## Further exercises
+
+### What is the average age of the subjects?
+
+```{r}
+mean(htwt$age)
+```
+
+### Draw a histogram of the ages, using the command `hist` or `geom_histogram`. Do the ages follow a normal distribution?
+
+```{r hist-age}
+hist(htwt$age)
+ggplot(htwt) + aes(age) + geom_histogram(binwidth = 5)
+```
+
+**Note from David**: A histogram may not be the best way of doing this. Probably more reliable to use a QQ plot:
+
+```{r qqplot-age}
+qqnorm(htwt$age)
+qqline(htwt$age)
+```
+
+Or in **ggplot2**:
+
+```{r ggplot-qqplot-age}
+ggplot(htwt) + aes(sample = age) +
+  stat_qq() + stat_qq_line()
+```
+
+### How old are the youngest and oldest males and females in the study?
+
+```{r}
+htwt %>%
+  group_by(sex) %>%
+  summarise_at('age', list(Youngest = min, Oldest = max))
+```
+
+Or, in base R:
+
+```{r}
+by(htwt$age, htwt$sex, range)
+```
+Or, in **data.table** syntax:
+
+```{r}
+htwt[, .(youngest = min(age), oldest = max(age)), by = sex]
+```
+
+### What is the mean of the self reported BMI? Is this greater or less than the mean of the BMI as measured by the nurse?
+
+```{r}
+mean(htwt$bmirep, na.rm = TRUE)
+mean(htwt$bmi, na.rm = TRUE)
+```
+
+### Create a variable for the difference between measured BMI and self-reported BMI:
+
+```{r}
+bmidiff <- with(htwt, bmi - bmirep)
+```
+
+Write down its mean value, standard deviation and the number of subjects for whom both BMI measures are available.
+
+```{r}
+mean(bmidiff, na.rm = TRUE)
+sd(bmidiff, na.rm = TRUE)
+sum(!is.na(bmidiff))
+```
+
+### Produce histograms of height in men and women and super-impose a normal distribution curve.
+
+Whilst you can do this in R, arguably quantile--quantile plots are a better way of visualising the normality (or otherwise) of the sample distribution.
+
+```{r grouped-qqplot-height}
+ggplot(htwt) +
+  aes(sample = nurseht) +
+  stat_qq() + stat_qq_line() +
+  facet_wrap(~ sex)
+```
+
+If you _really_ want to super-impose a density curve over a histogram, you can do so as follows.
+
+In base R, the following code `split`s the dataset into two, according to the `sex` of the patients.
+Then using these partial datasets (temporarily named `subset` each time), a histogram is plotted, followed by a normal density curve on the same axes (with mean and standard deviation equal to the respective sample estimates from each subset).
+
+```{r grouped-hist-height}
+for (subset in split(htwt, htwt$sex)) with(subset, {
+  hist(nurseht, main = unique(sex), probability = TRUE)
+  curve(dnorm(x, mean(nurseht, na.rm = T), sd(nurseht, na.rm = T)),
+        add = TRUE)
+})
+```
+You don't have to use a loop for this---you could just plot each sex manually.
+But if you had a lot of groups then this approach saves a lot of repetition.
+
+You can also do this in **ggplot2**, but if you want to use `facet`s then you need to calculate the densities yourself.
+
+```{r ggplot-grouped-hist-height, message = FALSE, fig.width = 7, fig.height = 8, warning = FALSE}
+library(dplyr)
+densities <- htwt %>%
+  group_by(sex) %>%
+  filter(!is.na(nurseht)) %>%
+  summarise(mean = mean(nurseht), sd = sd(nurseht),
+            min = min(nurseht), max = max(nurseht),
+            nurseht = seq(min, max, length = 100),
+            density = dnorm(nurseht, mean, sd))
+
+ggplot(htwt) +
+  aes(nurseht, ..density..) +
+  geom_histogram() +
+  geom_line(aes(y = density), data = densities, colour = 'tomato2') +
+  facet_wrap(~sex, nrow = 2, scales = 'free_y')
+```
+
+You're still better off with a QQ plot!
+
+### Copy your graphs into a Word document.
+
+While the original Stata worksheet suggests this, it is not a particularly reproducible workflow for writing an analysis report.
+
+R Markdown (or Overleaf, or Jupyter) should be used instead. Then, if the original code is updated, the final graph will also be updated and no manual formatting is required.
+
+If the output format *must* be Word (versus HTML, PDF), one can create an R Markdown document that renders a Word document as follows.
+
+````markdown
+---
+output: word_document
+---
+
+Text goes here.
+
+```{r}`r ''`
+# R code here
+```
+
+Text continues.
+
+```{r}`r ''`
+# Further R code here
+```
+
+More text.
+````
+
+See [Literate Programming in R Markdown](https://personalpages.manchester.ac.uk/staff/david.selby/rthritis/2021-01-15-literate-programming/) to learn more about dynamic document writing.

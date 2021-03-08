@@ -1,0 +1,689 @@
+---
+title: "Lecture 6: Linear Models II"
+description: |
+  Categorical variables, interactions, confounding and variable selection for linear regression models.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+date: 2020-04-16
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: linear-models-2_files/figure-html5/ggplot-smooth-1.png
+---
+
+
+This worksheet is based on the sixth lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dichotomous variables and *t*-tests
+
+Load the `auto` dataset distributed with Stata by downloading it from the company's web site.
+We are going to investigate whether US-made vehicles tend to be heavier than non-US-made vehicles (in 1978).
+
+```{r}
+auto <- foreign::read.dta('http://www.stata-press.com/data/r8/auto.dta')
+```
+
+### Are foreign vehicles heavier or lighter than US vehicles?
+
+Fit a linear model with the function call `lm(weight ~ foreign)`.
+
+```{r}
+auto_model <- lm(weight ~ foreign, data = auto)
+summary(auto_model)
+```
+
+From the summary output we can see that non-US vehicles are on average 1000 lbs lighter than those made in the USA.
+The difference is statistically significant at the 0.1% level.
+
+### Fit the above model again, but this time use `lm(weight ~ factor(foreign))`. Does this make any difference?
+
+No, because `foreign` is already a factor and R handles these natively.
+
+### Check that `summary.lm` gives the same results as `t.test`.
+
+Look at the difference between the means and its standard error: are they the same as those obtained by the linear model?
+
+```{r}
+t.test(weight ~ foreign, data = auto)
+```
+
+The test statistics are similar, but for them to be exactly the same as in the `summary` output, you would need to set `var.equal = TRUE`, i.e. perform a test that assumes the variances of the two samples were equal.
+By default, `t.test` assumes they are different.
+
+### Make box-and-whisker plots for the weights of both the US and non-US vehicles.
+
+Does the variance of `weight` look the same for the two categories?
+
+In base R graphics:
+
+```{r base-box}
+boxplot(weight ~ foreign, data = auto)
+```
+
+Or in **ggplot2**:
+
+```{r ggplot-box}
+library(ggplot2)
+ggplot(auto) +
+  aes(foreign, weight) +
+  geom_boxplot() +
+  theme_classic()
+```
+
+The variance looks like it might be a bit smaller among non-US (foreign) vehicles.
+
+### Finally, use a hypothesis test to confirm whether or not the variances are the same.
+
+In Stata you might use `hettest`, which assumes normality by default.
+In R, you can use `var.test` or `bartlett.test`, which assume normality, or `ansari.test` and `mood.test`, which are non-parametric.
+
+```{r}
+ansari.test(weight ~ foreign, data = auto)
+mood.test(weight ~ foreign, data = auto)
+```
+
+There does not appear to be sufficient evidence to reject the hypothesis that the scales of the two samples are the same.
+In other words: the variances are not significantly different.
+
+## Multiple categories and Anova
+
+The dataset [`soap.csv`](soap.csv) gives information on the scores given to 90 bars of soap for their appearance.
+The scales are on a scale of 1--10; the higher the score, the better.
+Three operators each produced 30 bars of soap.
+We wish to determine if the operators are all equally proficient.
+
+```{r, echo = -1}
+if (!file.exists('soap.csv')) {
+  soap <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/6_LinearModels2/data/soap.dta')
+  write.csv(soap, 'soap.csv', row.names = FALSE)
+}
+
+soap <- read.csv('soap.csv')
+```
+
+### Produce box-and-whisker plots comparing the appearance scores for each operator.
+
+Which appears to have the highest scores?
+
+```{r box-appearance}
+boxplot(appearance ~ operator, data = soap)
+ggplot(soap) +
+  aes(operator, appearance, group = operator) +
+  geom_boxplot() +
+  theme_classic()
+```
+
+### What are the mean scores for each of the three operators?
+
+```{r}
+aggregate(appearance ~ operator, soap, mean)
+
+library(dplyr)
+soap %>%
+  group_by(operator) %>%
+  summarise(mean = mean(appearance))
+```
+
+### Fit a linear model to the data. Are there significant differences between the three operators?
+
+Make sure that `operator` is treated as a categorical variable.
+
+```{r}
+soap$operator <- as.factor(soap$operator)
+soap_model <- lm(appearance ~ operator, data = soap)
+summary(soap_model)
+```
+
+The parameter estimators are relative to the first operator.
+Operator 2 and 3 are both significantly different from operator 1, at the 1% level.
+But the summary output above does not tell us about the differences between operators 2 and 3.
+Rather than test all the combinations, we can perform an $F$-test, using the `anova` function.
+
+```{r}
+anova(soap_model)
+```
+
+The operators have significantly different mean appearance scores.
+
+### Which operator was used as the baseline for the linear model?
+
+The first operator. You can see this by comparing the `(Intercept)` estimate with the mean appearance scores calculated earlier.
+
+### Perform a hypothesis test for the mean of operator 2. Do you get the same value for the mean as the score you calculated earlier?
+
+There is no equivalent in base R for Stata's `lincomb` command, to perform hypothesis tests on linear combinations of parameters.
+The R package `multcomp` provides the function `glht` (general linear hypothesis test) which serves a similar purpose as `lincomb`.
+However, we will do the computations by hand.
+
+The linear combination we want to consider, in this case, is
+\[\beta_0 + \beta_1 = 0,\]
+where $\beta_0$ is the intercept or baseline term, and $\beta_1$ is the difference between the baseline and the mean of operator 2, in the above model.
+
+The mean is
+\[\mathbf{c}^T \boldsymbol\beta = \pmatrix{1 & 1 & 0} \cdot \pmatrix{\beta_0 \\ \beta_1 \\ \beta_2},\]
+which yields
+
+```{r}
+Cvec <- c(1, 1, 0)
+Cvec %*% coef(soap_model)
+```
+
+as expected.
+
+### Calculate the difference in mean score between operators 2 and 3. Is this difference statistically significant?
+
+As in the previous question, we are computing a linear combination.
+In this case, the equation is
+\[(\beta_0 + \beta_1) - (\beta_0 + \beta_2) = \beta_1 - \beta_2 = 0,\]
+corresponding to the linear combination
+\[\mathbf{c}^T\boldsymbol\beta = \pmatrix{0 & 1  & -1} \cdot \pmatrix{\beta_0 \\ \beta_1 \\ \beta_2} = 0,\]
+under the null hypothesis.
+The mean difference is
+
+```{r}
+Cvec <- c(0, 1, -1)
+Cvec %*% coef(soap_model)
+```
+
+And the variance of the estimate is
+\[\operatorname{Var}(\mathbf{c}\hat{\boldsymbol\beta}) = \mathbf{c} \Sigma \mathbf{c}^T,\]
+where $\Sigma = \operatorname{Var}(\hat{\boldsymbol\beta})$ is the variance-covariance matrix of the estimated parameter vector $\hat{\boldsymbol\beta}$.
+In R,
+
+```{r, echo = 1}
+var_diff <- Cvec %*% vcov(soap_model) %*% Cvec
+(var_diff <- drop(var_diff))
+```
+
+and the test statistic is
+\[t = \frac{\mathbf{c}\hat{\boldsymbol\beta}}{\sqrt{\mathbf{c \Sigma c}^T}},\]
+
+```{r, echo = 1}
+t_stat <- Cvec %*% coef(soap_model) / sqrt(var_diff)
+t_stat
+```
+
+which has a $t$-distribution with $n-3$ degrees of freedom. The $p$-value is:
+
+```{r}
+pt(t_stat, df.residual(soap_model))
+```
+which is very small, so we reject the null hypothesis---in other words, there is a significant difference between the appearance scores of operators 2 and 3.
+
+## Interactions and confounding
+
+The dataset [`cadmium`](cadmium.csv) give data on the ages, vital capacities and durations of exposure to cadmium (in three categories) in 88 workers. We wish to see if exposure to cadmium has a detrimental effect on vital capacity.
+However, we know that vital capacity decreases with age, and that the subjects with the longest exposures will tend to be older than those with shorter exposures.
+Thus, age could confound the relationship between exposure to cadmium and vital capacity.
+
+```{r, echo = -1}
+if (!file.exists('cadmium.csv')) {
+  cadmium <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/6_LinearModels2/data/cadmium.dta')
+  write.csv(cadmium, 'cadmium.csv', row.names = FALSE)
+}
+
+cadmium <- read.csv('cadmium.csv', stringsAsFactors = TRUE)
+```
+
+### Plot a graph of vital capacity against age, to satisfy yourself that vital capacity decreases with increasing age.
+
+```{r capacity-age}
+plot(capacity ~ age, data = cadmium)
+ggplot(cadmium) +
+  aes(age, capacity) +
+  geom_point() +
+  theme_classic()
+```
+
+### In case you are not satisfied, fit a linear model (`lm`) to predict vital capacity from age.
+
+```{r}
+cd_model <- lm(capacity ~ age, data = cadmium)
+```
+
+It would be nice to be able to tell to which exposure group each point on the plot of vital capacity against age belonged.
+
+We can simply plot ages by exposure group directly:
+
+```{r box-exposure}
+plot(age ~ exposure, data = cadmium)
+```
+
+which shows that the group with the highest exposure tend to be older.
+But we could also do this while keeping the `capacity` data in the visualisation at the same time.
+
+To understand how we will do this, have a look at the column `exposure`.
+It is a factor, which behind the scenes is really a vector of integers with associated names for each value (or `level`).
+
+```{r}
+levels(cadmium$exposure)     # the possible factor levels
+as.integer(cadmium$exposure) # underlying numerical values
+```
+
+So we can select a colour scheme and then colour and shape each point accordingly.
+(Try typing `c('blue', 'red', 'grey')[cadmium$exposure]` into the console and see what you get.)
+
+```{r cadmium-base-scatter}
+plot(capacity ~ age, data = cadmium,
+     col = c('tomato', 'seagreen3', 'steelblue')[cadmium$exposure],
+     pch = as.numeric(cadmium$exposure))
+legend('bottomleft',
+       pch = 1:nlevels(cadmium$exposure),
+       legend = levels(cadmium$exposure),
+       col = c('tomato', 'seagreen3', 'steelblue'))
+```
+
+Rather than write out a vector of colours each time, you can assign them to the default colour `palette`,
+
+```{r}
+palette(c('tomato', 'seagreen3', 'steelblue', palette()))
+```
+
+and then you can retrieve them by index when making your next plot.
+
+(For a cheat sheet of base R graphical parameters, visit [Quick-R](https://www.statmethods.net/advgraphs/parameters.html).
+
+In `ggplot2`, these sorts of things are much more straightforward.
+Legends are added automatically.
+
+```{r ggplot-cadmium}
+ggplot(cadmium) +
+  aes(age, capacity, colour = exposure, shape = exposure) +
+  geom_point() +
+  theme_classic()
+```
+
+That might be quite hard to read (especially if you are colour blind), so we can also consider a facetted (lattice, trellis, or small multiples) plot.
+
+```{r cadmium-facet, fig.height = 3, fig.width = 5}
+ggplot(cadmium) +
+  aes(age, capacity) +
+  geom_point() +
+  facet_grid(~exposure) +
+  theme_classic()
+
+library(lattice)
+xyplot(capacity ~ age | exposure, data = cadmium, nrow = 3)
+```
+
+### Is there a difference between the three exposure groups in vital capacity?
+
+```{r capacity-box}
+plot(capacity ~ exposure, data = cadmium)
+cd_model2 <- lm(capacity ~ exposure, data = cadmium)
+anova(cd_model2)
+```
+
+Possibly not.
+The variance between the groups is not significantly different from the variance within the groups, even before we take age into account.
+
+### We have seen that a lower vital capacity in the most exposed may be due to their age, rather than their exposure. Adjust the previous example for age. Now test whether there are significant differences between groups.
+
+```{r}
+cd_model3 <- lm(capacity ~ age + exposure, data = cadmium)
+anova(cd_model3)
+```
+
+It looks like there are no significant differences between the groups.
+
+To get a visual idea of the meaning of the previous regression model, we can plot the data with the lines of best fit. In base R graphics, we can use the `abline` command with the corresponding intercepts and slopes from the vector of `coefficients`.
+
+```{r}
+# Scatter plot, as before.
+plot(capacity ~ age, data = cadmium,
+     col = cadmium$exposure,
+     pch = as.numeric(cadmium$exposure))
+legend('bottomleft',
+       pch = 1:nlevels(cadmium$exposure),
+       legend = levels(cadmium$exposure),
+       col = 1:nlevels(cadmium$exposure))
+
+# < 10 years
+abline(a = coef(cd_model3)['(Intercept)'], # baseline
+       b = coef(cd_model3)['age'], # slope
+       col = 1)
+# > 10 years
+abline(a = coef(cd_model3)['(Intercept)'] + coef(cd_model3)[3],
+       b = coef(cd_model3)['age'],
+       col = 2)
+# No exposure
+abline(a = coef(cd_model3)['(Intercept)'] + coef(cd_model3)[4],
+       b = coef(cd_model3)['age'],
+       col = 3)
+```
+
+Another way of doing this is to generate two (or more) ages, assign an exposure level, and `predict` the capacities for those observations.
+Then draw a line (segment) through the points.
+
+### Finally, we wish to test the hypothesis that subjects with high exposure lose their vital capacity quicker as they age, i.e. that there is an interaction between age and vital capacity.
+
+In R, interaction terms are represented by `termA:termB`.
+You can specify them explicitly along with the main effects, or you can use the syntax `termA*termA`, which is shorthand for the main and interaction effects `termA + termB + termA:termB`.
+Remember, it is not valid to estimate an interaction effect without also estimating the main effects.
+
+```{r}
+cd_model4 <- lm(capacity ~ age * exposure, data = cadmium)
+anova(cd_model4)
+```
+
+It appears, then, that though the intercepts of the lines are not significantly different, the slopes are---at the 5% level.
+We can draw them, using similar syntax to before).
+
+```{r base-abline, echo = -(1:2)}
+plot(capacity ~ age, data = cadmium,
+     col = cadmium$exposure,
+     pch = as.numeric(cadmium$exposure))
+legend('bottomleft',
+       pch = 1:nlevels(cadmium$exposure),
+       legend = levels(cadmium$exposure),
+       col = 1:nlevels(cadmium$exposure))
+
+coefs <- coef(cd_model4) # to save typing
+
+# < 10 years
+abline(a = coefs['(Intercept)'], # baseline
+       b = coefs['age'], # baseline slope
+       col = 1)
+# > 10 years
+abline(a = coefs['(Intercept)'] + coefs['exposure> 10 years'],
+       b = coefs['age'] + coefs['age:exposure> 10 years'],
+       col = 2)
+# No exposure
+abline(a = coefs['(Intercept)'] + coefs['exposureNo exposure'],
+       b = coefs['age'] + coefs['age:exposureNo exposure'],
+       col = 3)
+```
+
+In `ggplot2`, a full model is implicitly fitted when you ask for a `geom_smooth` line using `method = lm`.
+
+```{r ggplot-smooth}
+ggplot(cadmium) +
+  aes(age, capacity, colour = exposure) +
+  geom_smooth(method = lm, se = TRUE) +
+  geom_point()
+```
+
+It shows a bit more clearly that, whilst the fitted lines look quite different above, the standard error intervals reveal a large degree of uncertainty in the estimation of their slopes and intercepts, and formal hypothesis testing suggests the effect of exposure group, once age is taken into account, is not statistically significant.
+
+### From the regression output, which group has the steepest slope with age and which group has the least steep?
+
+```{r}
+summary(cd_model4)
+```
+The steepest line is attributed to the group with more than 10 years exposure.
+The 'no exposure' group has the least steep line.
+(Remember the lines are sloping downwards, so it is the _magnitude_ of the slopes we are interested in.)
+
+### Calculate the decrease in vital capacity per year increase in age in the highest exposure group.
+
+```{r}
+coefs['age'] + coefs['age:exposure> 10 years']
+```
+
+## Variable selection
+
+> *'Have you read about the vast amount of evidence that variable selection causes severe problems of estimation and inference?'*
+>
+> --- Frank Harrell
+
+Use the dataset [`hald.csv`](hald.csv).
+This contains data on the amount of heat evolved as cement hardens, as a function of the proportions of four chemicals in the composition of the cement.
+
+```{r, echo = -1}
+if (!file.exists('hald.csv')) {
+  hald <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/6_LinearModels2/data/hald.dta')
+  write.csv(hald, 'hald.csv', row.names = FALSE)
+}
+
+hald <- read.csv('hald.csv')
+```
+
+As a warning of things to come, let's visualise the data, first.
+
+```{r hald, fig.width = 5, fig.height = 5}
+plot(hald)
+```
+
+### Use forward selection to choose a model for predicting the amount of heat evolved.
+
+```{r}
+step(lm(y ~ 1, data = hald),
+     scope = c(lower = y ~ 1,
+               upper = y ~ x1 + x2 + x3 + x4),
+     direction = 'forward')
+```
+
+### Now use backward elimination. Does this select the same model?
+
+```{r}
+step(lm(y ~ ., data = hald), # '.' means 'everything'
+     direction = 'backward')
+```
+
+Yes, both directions lead to the same model:
+\[\hat Y = \hat\beta_0 + \hat\beta_1 x_1 + \hat\beta_2 x_2 + \hat\beta_4 x_4.\]
+
+### (Choose a model with stepwise election, with the command...)
+
+R performs stepwise model selection by AIC, so this question is not relevant.
+Unless you want the students to perform stepwise regression via hypothesis tests.
+This is possible via repeated application of the `add1` and `drop1` functions.
+
+### Produce a correlation matrix for the *x*-variables using the `cor` function. What is the correlation between `x2` and `x4`?
+
+```{r}
+cor(hald[, 1:4])
+cor(hald)['x2', 'x4']
+```
+
+### Does this help to explain why the different methods of variable selection produced different models?
+
+In this case we fitted via AIC so the results are probably different to whatever Stata's `sw` says.
+
+### Fit all 4 predictors in a single model. Look at the *F*-statistic: is the fit of the model statistically significant?
+
+Slightly ambiguous question. The fit of the model compared to what?
+
+```{r}
+full_model <- lm(y ~ ., data = hald)
+```
+
+If the exercise means 'compared to a null model', i.e. testing for the existence of regression, then we have
+
+```{r}
+null_model <- lm(y ~ 1, data = hald)
+anova(null_model, full_model)
+```
+
+The $F$-statistic is significant, suggesting the full model is a better fit than a null model.
+
+### Look at the $R^2$ statistic: is this model good at predicting how much heat will be evolved?
+
+```{r}
+summary(full_model)$r.squared
+```
+
+Yes, but the $R^2$ statistic is not necessarily a good way to determine the quality of a model.
+
+### Look at the table of coefficients: how many of them are significant at the $p = 0.05$ level?
+
+This question is extremely dubious.
+Without specifying a null hypothesis and a corresponding test statistic, it could mean anything.
+
+The desired output can be produced with
+
+```{r}
+summary(full_model)
+```
+
+but it would be unwise to draw any conclusions from this.
+Each of these tests amounts to comparing this five-parameter model with each of the possible four-parameter models induced by dropping just one parameter at a time.
+But we have already seen that two of the variables are highly correlated.
+And the visualisation suggests that blind testing may not reveal a great deal of insight.
+
+# Polynomial regression
+
+Use the data in [`growth.csv`](growth.csv).
+This dataset gives the weight, in ounces, of a baby weighed weekly for the first 20 weeks of its life.
+
+```{r, echo = -1}
+if (!file.exists('growth.csv')) {
+  growth <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/6_LinearModels2/data/growth.dta')
+  write.csv(growth, 'growth.csv', row.names = FALSE)
+}
+
+growth <- read.csv('growth.csv')
+```
+
+### Plot the data. Does the pattern appear to be linear, or is there evidence of non-linearity?
+
+```{r}
+plot(weight ~ week, data = growth)
+```
+
+### Fit a straight line to the data. Produce a partial residual plot. Does this confirm what you thought previously?
+
+```{r growth}
+growth_model1 <- lm(weight ~ week, data = growth)
+plot(weight ~ week, data = growth)
+abline(growth_model1) # Add the line of best fit to the plot
+```
+
+You can produce partial residual plots with `crPlot`(`s`) from the `car` package.
+
+```{r crplot, fig.height = 4, fig.width = 4}
+library(car)
+crPlots(growth_model1)
+```
+Personally I find these a little bit challenging to read and would consider a plot of residuals against fitted values instead.
+
+```{r, fig.height = 4, fig.width = 4}
+plot(growth_model1, which = 1)
+```
+The evidence of non-linearity is much clearer, here.
+
+### Fit a polynomial model with the formula `weight ~ week + I(week^2)`, or by creating a new variable equal to `week^2` and adding it as a term in the model. Does this improve the fit of the model?
+
+```{r}
+growth_model2 <- lm(weight ~ week + I(week^2), data = growth)
+```
+
+The reason for the `I()` is that in the formula interface, `^2` has a special meaning (to do with interactions), rather as a mathematical operator (just as `+` and `*` have special roles, also).
+
+You can also just create a variable with value equal to the square of the original predictor:
+
+```{r}
+growth$week2 <- growth$week^2
+growth_model2a <- lm(weight ~ week + week2, data = growth)
+```
+
+Finally, you can use the `poly` function to add polynomial terms. By default, it does *orthogonal* regression; set `raw = TRUE` to switch that off.
+
+```{r}
+growth_model2b <- lm(weight ~ poly(week, 2, raw = T), data = growth)
+```
+
+Each of the three forms above yield the same model with the same parameter estimates and test statistics.
+
+```{r}
+summary(growth_model2)
+summary(growth_model2a)
+summary(growth_model2b)
+```
+
+### Produce a graph of the observed and fitted values.
+
+Unlike the previous sections, the fitted curve is no longer a straight line, so instead we need to plot the fitted points and then join them together.
+
+```{r, growth-curve}
+plot(weight ~ week, data = growth)
+lines(growth$week,
+      fitted(growth_model2),
+      col = 1)
+```
+
+*In this case, the `week` values are all in order, so it is simple. But if they were not, we would have to sort the predictor and then make sure the corresponding fitted values had the same order.*
+
+Or, just make an evenly-spaced grid of points and `predict` values from this.
+Handy if the observed $x$-values were not evenly spaced, or if you wanted your line to extend beyond the range of the data.
+
+```{r growth-curve-2}
+plot(weight ~ week, data = growth,
+     xlim = c(-5, 25), ylim = c(100, 300))
+lines(-5:25, predict(growth_model2, newdata = list(week = -5:25)),
+      col = 1)
+```
+
+*The above is just for demonstration. Of course you can't have negative weeks!*
+
+### Continue to generate polynomial terms and add them to the regression model until the highest order term is no longer significant. What order of polynomial is required to fit this data?
+
+Don't do this.
+Some form of regularisation must be employed to ensure model complexity does not increase too much.
+Simple hypothesis tests do nothing to account for this.
+
+```{r}
+growth_model3 <- update(growth_model2, . ~ . + I(week^3))
+growth_model4 <- update(growth_model3, . ~ . + I(week^4))
+growth_model5 <- update(growth_model4, . ~ . + I(week^5))
+```
+
+The slow in decrease in AIC suggests that the quadratic model (polynomial of degree 2) is the best one to use.
+
+```{r}
+sapply(list(degree1 = growth_model1,
+            degree2 = growth_model2,
+            degree3 = growth_model3,
+            degree4 = growth_model4,
+            degree5 = growth_model5),
+       AIC)
+```
+
+As it happens, if we did use hypothesis tests then we would get the same result.
+
+```{r}
+anova(growth_model1, growth_model2)
+anova(growth_model2, growth_model3)
+```
+
+### Produce a correlation matrix for the polynomial terms. What is the correlation between `week` and `week^2`?
+
+No much of a correlation matrix: it only contains one value!
+
+```{r}
+cor(growth[, c('week', 'week2')])
+```
+
+Would be as well to run:
+
+```{r}
+with(growth, cor(week, week^2))
+```
+
+The `poly` function, described earlier, anticipated this. We can use the default setting (`raw = FALSE`) to perform *__orthogonal__ polynomial regression*.
+
+```{r}
+growth_orthog2 <- lm(weight ~ poly(week, 2), data = growth)
+summary(growth_orthog2)
+```
+
+Compare the correlation of the predictors:
+
+```{r}
+cor(model.matrix(growth_model2)[, -1])
+cor(model.matrix(growth_orthog2)[, -1])
+```
+
+and we see the orthogonal terms are, well, orthogonal!

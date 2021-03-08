@@ -1,0 +1,304 @@
+---
+title: "Collaboration, Outreach and Learning to Commit"
+description: |
+  Step by step guide on using GitHub and RStudio for collaborative analysis.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-03-12
+# categories:
+  # - Workflow
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+rinline <- function(code) {
+  # Print inline R code with backticks without evaluating it
+  sprintf('``` `r %s` ```', code)
+}
+```
+
+This guide introduces the concept of version control using only GUI tools, namely
+RStudio and the GitHub web interface.
+If you'd prefer to learn command line syntax, there are many other resources available on the web from [GitHub](https://guides.github.com/introduction/git-handbook/), [Atlassian](https://www.atlassian.com/git/tutorials) and others.
+
+## Using GitHub
+
+### Create a GitHub repository
+
+1.  Login or sign up for a free account at <https://www.github.com>.
+2.  Click **New repository**, give it a name, e.g. `hello`, select
+    “Public” and tick the box “Initialize this repository with a
+    README”.
+3.  Click **Create repository**.
+
+### Learning to commit
+
+Click on the file `README.md` and click the ✏️ pencil icon (“Edit this
+file”) in the upper-right.
+
+*If, in the previous step, you forgot to initialise with a README, you
+can do it now by clicking on the link “We recommend every repository
+include a README”.*
+
+A basic text editor will appear, containing the contents of your
+`README.md` file, which at the moment will be just:
+
+``` markdown
+# hello
+```
+
+Modify the file to say something like
+
+``` markdown
+# My first repository
+
+Welcome to my GitHub repo! :smile:
+
+Here I will *commit*, _pull_ and *push* plaintext documents and `code`.
+```
+
+This is a plain Markdown document. You can write in the same basic
+syntax as for Markdown (`.md`) documents in RStudio (except mathematics
+expressions, which are not supported).
+
+Scroll down to where the page says **Commit changes**. In the first box,
+add a short description of your changes to the file, e.g. “Add initial
+fun facts”. Click the green **Commit changes** button. You will see a
+rendering of your `README.md` Markdown file on your repository’s main
+page.
+
+### Adding files
+
+As well as creating and editing pages in the browser, you can upload
+files from your computer.
+
+Let’s upload an image file. As this repository is displayed on the
+public web, we should make sure we have permission to republish content.
+Use [Creative Commons Search](https://search.creativecommons.org/) to
+find a nice picture. Download it to your computer. I like [this
+one](https://pixabay.com/en/chicks-spring-chicken-plumage-349035/).
+
+![Picture of a chick, by Philipp Kleindienst](chick.jpg)
+
+Check the licence; the picture above is
+[CC0](https://wiki.creativecommons.org/wiki/CC0) so I don’t actually
+need to cite the author, but this isn’t always the case!
+
+Open your GitHub repository page
+(e.g. `https://github.com/username/hello`) in a web browser and upload
+your image file, either using the **Upload files** button or by dragging
+the file into your browser window. Write an informative commit message
+like “Add nice picture of chick”, then **Commit changes**.
+
+Edit your `README.md` file to include the image you just uploaded.
+Before committing, use the “Preview changes” tab to check your Markdown
+syntax is correct. Remember to cite the image source, if necessary, in a
+caption or footnote. Commit your changes.
+
+Made a mistake? Simply edit the file again and make another commit.
+
+### Commit history
+
+You should now have a GitHub repository with multiple commits and files
+in it. Nostalgic for the old version? You can go back in time!
+
+Visit the Commits page by clicking on the “\# commits” link on the
+repository main page, or access the URL
+`https://github.com/username/hello/commits/master`, replacing `username`
+and `hello` with your username and repository name, respectively.
+
+You should see a list of every commit made so far, from newest to
+oldest.
+
+-   The **&lt;&gt;** button on the right (“Browse the repository at this
+    point in the history”) lets you look back on old versions of your
+    project.
+-   Clicking on the commit description or the hash (the 7 characters of
+    gobbledegook) lets you review what changed between each commit, line
+    by line. You can even leave comments!
+
+If you fancy, ask your neighbour for their repository URL, visit one of
+their commits and leave a comment on it, commending them on their image
+choice, flair for Markdown syntax, etc. Mine’s here:
+<https://github.com/Selbosh/hello>
+
+## RStudio with Git
+
+Editing documents online is handy, but probably not where you expect to
+be doing most of your work. Now we will learn to connect RStudio with
+GitHub.
+
+### Version-controlled RStudio projects
+
+In RStudio, go to *File &gt; New Project… &gt; Version Control &gt;
+Git*.
+
+Enter the URL of your GitHub repository into the “Repository URL” field,
+for example `https://github.com/username/hello`, replacing `username`
+with your GitHub user name and replacing `hello` with the name you gave
+your new repository.
+
+Choose somewhere to store the project on your computer, then click
+**Create Project**. Enter your GitHub username and password, if
+prompted.
+
+RStudio will create a folder containing all your files so far, plus a
+`hello.Rproj` file and a `.gitignore` file.
+
+If you want to associate an existing RStudio Project with a GitHub
+repository (rather than creating a new one), you can do so via *Tools
+&gt; Version Control &gt; Project Setup…*.
+
+### Pushing files
+
+Let’s make some local changes and **push** them to GitHub.
+
+In RStudio, open `README.md`. Modify some of the existing text if you
+like, and add the following:
+
+``` markdown
+## A new section
+
+I just wrote *this* in RStudio!
+```
+
+Visit the “Git” pane in RStudio and tick the “Staged” box next to
+`README.md`, then **Commit**. You will see a summary of all the changes
+you have made to the file.
+
+Add a Commit message like “First edit from RStudio” and click
+**Commit**.
+
+Then click **Push**, enter your username and password again if prompted,
+and your committed changes will be uploaded to GitHub.
+
+### Pulling files
+
+If you are working on multiple computers, or you have collaborators,
+your local folder may not always be up to date with the latest version
+of the repository that is on GitHub. In this case, we will want to
+**Pull**.
+
+In your web browser, edit `README.md` again. For example, add:
+
+``` markdown
+## Another new section created on GitHub
+
+I will need to **pull** this!
+```
+
+and commit the changes.
+
+Your local copy of the repository is now out of date! Let’s remedy this.
+In RStudio, click **Pull**. Your files will magically update with the
+latest changes.
+
+### R Markdown GitHub documents
+
+R Markdown supports a special format for previewing on the web. It
+generates plain Markdown (`.md`) files and images suitable for display
+on GitHub.
+
+Rename or make a copy of your README called `README.Rmd`. Add this YAML
+header.
+
+``` yaml
+---
+output: github_document
+---
+```
+
+Add an R chunk and some inline R code, for example:
+
+``````markdown
+## Evaluated R code
+
+The `chickwts` dataset in R has ``r 'r nrow(chickwts)'`` rows.
+
+```{r chickplot}`r ''`
+plot(chickwts$weight ~ chickwts$feed,
+     xlab = 'Feed type',
+     ylab = 'Weight (grams)',
+     col = 2:7)
+```
+``````
+
+**Knit** the document and check the local preview looks OK. Notice that
+`README.md` has now been updated with a plain Markdown version of your
+generated document, and a folder called `README_files/` has been created
+containing the rendered plot file(s).
+
+Stage, commit and push all the new/modified files, which should be
+something like the following.
+
+-   `README.Rmd`
+-   `README.md`
+-   `README_files/figure-markdown_github-ascii_identifiers/chickplot-1.png`
+
+Check the version on GitHub. Does everything look right?
+
+## Forking and pull requests
+
+Multiple people can collaborate in a single GitHub repository, all with
+permission to commit, push and pull. This is something you can configure
+in your repository settings, but not something we will try for the
+moment.
+
+Sometimes you may want to suggest changes to somebody else’s repository
+without them giving you full access. This involves making a **Fork**
+(your own personal copy) of the repository, making your suggested
+changes, then filing a **Pull request**. If the owner of the original
+repository approves, they will update the project with your changes.
+
+You can do this if you want to correct a typographical error in a text
+document, or if you reckon you can fix a bug in someone else’s code.
+
+*You can do this task entirely in your web browser, or you can use
+RStudio.*
+
+1.  Visit <https://github.com/Selbosh/wdsi-lab> and click **Fork** (in
+    the top-right corner). You now have your own “forked” version of my
+    repository, which you can edit as you please.
+2.  (*Optional.*) Create a new RStudio Project that checks out your Fork
+    from GitHub. That is, go to *File &gt; New Project… &gt; Version
+    Control &gt; Git* and enter the URL of your forked repository, which
+    should be something like `https://github.com/your-username/wdsi-lab`
+3.  If you performed Step 2, then open the file `README.md` in RStudio.
+    Else, edit it in your web browser. Add your name and a link to your
+    `hello` repository (the one you created in the previous section) to
+    the Markdown table there.
+4.  Commit & push your changes to your GitHub repository, then file a
+    pull request. Assuming you didn’t break anything, I (David) will
+    approve your pull request and your name will appear in the [**Hall
+    of Fame**](https://github.com/Selbosh/wdsi-lab)!
+
+Done? [File an issue](https://github.com/Selbosh/wdsi-lab/issues) with
+any feedback you have about the course. Or, follow a link in the Hall of
+Fame to somebody else’s repository and practise leaving comments and
+filing pull requests.
+
+## Blogging with R
+
+I have written a blog post about [Getting started with
+blogdown](http://selbydavid.com/wrugdown/2017/05/10/getting-started-with-blogdown/).
+You can also view the [GitHub
+repository](https://github.com/Selbosh/wrugdown) for that blog.
+
+Or look at the source repository for a ‘real’ blog:
+<https://github.com/Selbosh/selbosh.github.io>
+
+Spotted a typo? Want to write a guest post? File a pull request!
+
+### Other useful resources
+
+-   <https://www.r-bloggers.com/>
+-   <https://bookdown.org/yihui/blogdown/>
+-   <https://support.rbind.io/>
+-   [\#Rstats](https://twitter.com/search?q=%23rstats) on Twitter

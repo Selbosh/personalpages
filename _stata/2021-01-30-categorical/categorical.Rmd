@@ -1,0 +1,441 @@
+---
+title: "Lecture 8: Modelling Categorical Outcomes"
+description: |
+  Fitting binomial, multinomial and probit regression models for discrete and categorical responses with R.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-01-30
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: categorical_files/figure-html5/food-lake-1.png
+---
+
+This worksheet is based on the eighth lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The datasets for this practical can be accessed via http from within R.
+The file path is very long, so you can save yourself some typing by saving it to a variable.
+The function `file.path` joins strings together with slashes, for example if you want to combine a web address with a directory or file name.
+
+```{r, echo = FALSE}
+basedir <- 'http://personalpages.manchester.ac.uk/staff/mark.lunt'
+datadir <- file.path(basedir, 'stats/8_Categorical/data')
+```
+
+As Mark has saved these datasets in the Stata-specific `.dta` format, we import them into R using the `read.dta` function from the **foreign** package.
+Usually however, data are stored in CSV format and they can be imported with the base function `read.csv`.
+
+## Binomial and multinomial logistic regression
+
+The data used for this section was collected as part of a survey of alligator food choices in 4 lakes in Florida.
+The largest contributor to the volume of the stomach contents was used as the outcome variable food, and the characteristics of the alligators are their length (dichotomised as ≤ 2.3m and > 2.3m), their sex and which of the four lakes they were caught in.
+
+### Load the `alligators.dta` data into R from the path above.
+
+```{r}
+alligators <- foreign::read.dta(file.path(datadir, 'alligators.dta'))
+```
+
+Familiarise yourself with the factor labels in the dataset.
+For example, since every column is a factor, you can list all the possible levels for each variable with:
+
+```{r}
+lapply(alligators, levels)
+```
+If your data are classed as character vectors rather than factors, you could get the same with
+
+```{r, eval = F}
+lapply(alligators, unique)
+```
+
+### Create a new column, `invertebrate` which takes the level "Invertebrate" if the main food was invertebrates, "Fish" if the main food was fish and "Other" for all other groups.
+
+Here we see how Stata differs from R in its treatment of categorical variables.
+For the most part you can model categorical variables directly, either as character vectors or as `factor`s (which can take on text-based or numerical labels).
+
+Numerical codes make things easier for computers to compute, but harder for humans to understand and read.
+The `factor` class in R (and its implicit treatment of `character` vectors as categorical variables) helps abstract away integer coding, so your code and data are more human-readable.
+
+*What's the difference between a character and a factor, then?*
+A factor can have more levels than appear in the data.
+That is, there can be factor levels with zero observations.
+By contrast, summarising a character vector will only show those values that actually appear in the data.
+
+```{r}
+class(alligators$food)
+```
+
+To merge the "Reptile", "Bird" and "Other" values under a single label, while leaving the "Fish" and "Invertebrate" levels unchanged, there are multiple different approaches.
+Some methods are specific to data classed as `factor`; others work directly on `character` vectors.
+
+As a `factor`, the `food` column has underlying values (integers 1 to 5) and then printed labels for each level.
+Inspecting the levels:
+
+```{r}
+levels(alligators$food)
+```
+
+We can change the last three levels to have the same name.
+Here they are ordered by first appearance, but **don't** rely on this; sometimes, depending on how the data are imported, they might be in alphabetical order, or another ordering entirely.
+So we will subset those levels which are neither 'Fish' nor 'Invertebrate' and set them equal to 'Other'
+
+```{r, eval = FALSE}
+within(alligators, {
+  invertebrate <- food # copy the factor to a new column
+  levels(invertebrate)[levels(invertebrate) != 'Fish' &
+                         levels(invertebrate) != 'Invertebrate'] <- 'Other'
+})
+```
+
+The **tidyverse** package [**forcats**](https://forcats.tidyverse.org/) ("for categorical variables") offers a whole suite for tools for these sorts of applications, designed with a consistent interface.
+This is an alternative to the base R way; which way you choose is down to personal preference.
+
+```{r, eval = FALSE}
+library(tidyverse)
+alligators %>%
+  mutate(invertebrate = fct_collapse(food,
+                                     Other = c('Other', 'Reptile', 'Bird')))
+```
+
+There are countless other methods of achieving the same.
+In fact, it's often simpler just to treat the variables as character vectors rather than factors:
+
+```{r, eval = F}
+alligators %>%
+  mutate_all(as.character) %>%
+  mutate(invertebrate = ifelse(food %in% c('Fish', 'Invertebrate'),
+                               food, 'Other'))
+```
+
+(The `x %in% c(a, b)` syntax is a shorthand way of writing `x == a | x == b`.)
+
+You could also do this in **data.table**:
+
+```{r}
+library(data.table)
+setDT(alligators)
+alligators[, invertebrate := as.character(food)]
+alligators[!(food %in% c('Fish', 'Invertebrate')),
+           invertebrate := 'Other']
+```
+
+Whatever your approach, you should now have a dataset that looks a bit like this:
+
+```{r, echo = FALSE}
+head(alligators)
+```
+
+### Produce a cross-contingency table of food against length, with the function `table` or `xtabs`.
+
+You should see that whilst fish and invertebrates are equally common in the smaller alligators, the larger ones are more likely to eat fish than invertebrates.
+
+```{r}
+with(alligators, table(invertebrate, size))
+xtabs(~ invertebrate + size, data = alligators)
+```
+
+### Obtain an odds ratio for the effect of size on the probability that the main food is either fish or invertebrates.
+
+In the original Stata worksheet we were asked to replace 'Other' with missing values (i.e. `NA`) but we haven't done that here, because it is easy to model only a subset of the data using the `subset` argument to `glm`.
+
+However, if you'd followed the original instructions, then `invertebrate` would be a vector equal to `TRUE` (1) if the main food was invertebrates, `FALSE` (0) if fish and `NA` for anything else.
+Here we kept the text values, so within the model we convert to logical/numeric with the `==` syntax you see below.
+
+```{r}
+size_model <- glm(invertebrate == 'Invertebrate' ~ size,
+                  data = alligators,
+                  subset = invertebrate != 'Other',
+                  family = binomial)
+
+summary(size_model)
+```
+The coefficients give the **log-odds**, so the odds ratios are simply
+
+```{r}
+exp(coefficients(size_model))
+```
+
+### Now create another outcome variable which compares the probability that the main food is reptiles to the probability that the main food is fish.
+
+As you might have seen already, there's no need to do this.
+
+### Obtain an odds ratio for the effect of size on the probability that the main food is either fish or reptiles.
+
+Most of the above steps were not necessary for the previous model; you can fit the entire model in one function call as follows.
+
+```{r}
+size_model2 <- glm(food == 'Reptile' ~ size,
+                   data = alligators,
+                   subset = food %in% c('Reptile', 'Fish'),
+                   family = binomial)
+
+exp(coefficients(size_model2))
+```
+
+### Now use `nnet::multinom` to obtain the odds ratios for the effect of size on all food choices. Which food category is the comparison group?
+
+Use the `multinom()` function from the package **nnet**.
+
+```{r, results = 'hide'}
+library(nnet)
+size_model3 <- multinom(food ~ size, data = alligators)
+```
+
+Which food category is the comparison (baseline/reference) group?
+Check that the odds ratios for the invertebrate vs. fish and reptile vs. fish comparisons are the same as before.
+
+```{r}
+exp(coefficients(size_model3))
+```
+
+### Are larger alligators more likely to choose reptiles rather than invertebrates?
+
+Again, there is no base R equivalent of Stata's `lincomb` command.
+You can compute the linear combination by hand.
+From the output above, you can see we want to test if $\beta_0 = \beta_1$, or
+\[\mathbf{c}^T \boldsymbol\beta = \pmatrix{-1 & 1 & 0 & 0} \cdot \pmatrix{\beta_0 \\ \beta_1 \\ \beta_2 \\ \beta_3} = 0.\]
+
+In R we use the matrix multiplication operator `%*%`, then apply the exponential function to get the odds ratio.
+
+```{r}
+exp(c(-1, 1, 0, 0) %*% coefficients(size_model3))
+```
+
+Thus the odds ratio is 6.1.
+
+### Check this result by using a single logistic regression model.
+
+```{r}
+size_model4 <- glm(food == 'Reptile' ~ size,
+                   data = alligators,
+                   subset = food %in% c('Reptile', 'Invertebrate'),
+                   family = binomial)
+exp(coefficients(size_model4))
+```
+
+### Now we are going to look at the influence of the lakes on the food choices. Produce a table of main food choice against lakes with `table` (or `xtabs`).
+
+Does the primary food differ between the four lakes?
+
+```{r}
+with(alligators, table(food, lake))
+
+options(digits = 1) # avoid spurious precision
+with(alligators, proportions(table(food, lake), margin = 1))
+```
+
+*Tip.* If you want column and row totals in your counts table you can use `addmargins()`.
+
+```{r}
+with(alligators, addmargins(table(food, lake)))
+```
+You could also plot the data for a better overview:
+
+```{r food-lake}
+library(ggplot2)
+ggplot(alligators) +
+  aes(lake, fill = invertebrate) +
+  geom_bar(position = 'fill') +
+  ylab('proportion') +
+  scale_fill_brewer('Food choice', type = 'qual') +
+  theme_classic()
+```
+
+### What proportion of alligators from Lake Hancock had invertebrates as their main food choice? How does this proportion compare to the other three lakes?
+
+From the `proportions` table above: 7%.
+
+
+### Now fit a multinomial logistic regression model for food choice against lake.
+
+```{r}
+lake_model <- multinom(food ~ lake, data = alligators,
+                       trace = FALSE) # hide output
+summary(lake_model)
+```
+This particular summary doesn't give a $\chi^2$ statistic but you can compute one yourself.
+Does this suggest that the primary food differs between the lakes?
+
+```{r}
+with(alligators, chisq.test(food, lake))
+```
+
+### What is the odds ratio for preferring invertebrates to fish in lake Oklawaha compared to Lake Hancock? Does this agree with what you saw in the table?
+
+Fish and Lake Hancock are both reference levels in this case, so we can just read off the coefficients.
+
+```{r}
+exp(coefficients(lake_model))['Invertebrate', 'lakeOklawaha']
+```
+
+### Confirm your answer to the previous question by using a single logistic regression model.
+
+```{r}
+lake_model2 <- glm(food == 'Invertebrate' ~ lake,
+                   data = alligators,
+                   subset = food %in% c('Invertebrate', 'Fish'),
+                   family = binomial)
+
+exp(coefficients(lake_model2))['lakeOklawaha']
+```
+
+## Using `nnet::multinom`
+
+This section uses the dataset [`politics.dta`](http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/8_Categorical/data/politics.dta) which contains information on the effect of gender and race on political party identification in the United States.
+
+```{r}
+politics <- foreign::read.dta(file.path(datadir, 'politics.dta'))
+```
+
+### Use `levels` to find out the meanings of the variables.
+
+```{r}
+lapply(politics, levels)
+```
+
+### Use a multinomial model to determine the effect of race on party affiliation. How does being black affect the odds of being a Republican rather than a Democrat?
+
+```{r}
+library(nnet)
+party_model <- multinom(party ~ race, data = politics,
+                        trace = FALSE)
+exp(coefficients(party_model))
+```
+
+Black people are less likely to be Republicans versus Democrats; the odds ratio is 0.1.
+
+*Note.* "White" and "Democrat" are both reference levels in this model.
+
+### How does being black affect the odds of being an independent rather than a Democrat?
+
+From the output above, the odds ratio of being an independent rather than a Democrat is 0.3 for those people identified as black.
+
+### Use `table` or `xtabs` to check whether your answers to the previous questions are sensible.
+
+```{r}
+xtabs(~ party + race, data = politics)
+```
+
+### What is the odds ratio for being a Republican rather than a Democrat for women compared to men?
+
+```{r}
+party_model2 <- multinom(party ~ gender, data = politics, trace = FALSE)
+exp(coefficients(party_model2))
+```
+
+The odds ratio is 0.6.
+
+Verify this with a logistic regression model.
+(Here we column-bind the parameter estimates with their 95% confidence intervals.)
+
+```{r}
+party_model3 <- glm(party == 'Republican' ~ gender,
+                    data = politics,
+                    subset = party != 'Independent',
+                    family = binomial)
+
+exp(
+  cbind(estimate = coefficients(party_model3),
+        confint(party_model3))
+)
+```
+
+### Fit a multinomial model in which party identification is predicted from both race and gender.
+
+```{r, results = 'hide'}
+party_model4 <- multinom(party ~ race + gender, data = politics)
+```
+
+### Add the interaction between race and gender, to see if the race influence differs between men and women. Is this difference statistically significant?
+
+Either fit the model again with another call to `multinom`, or add the term to the model using `update`:
+
+```{r, results = 'hide'}
+party_model5 <- update(party_model4, ~ . + race:gender)
+```
+
+Compare the two models with a $\chi^2$ test:
+
+```{r, eval = FALSE}
+anova(party_model5, party_model4)
+```
+
+```{r, echo = FALSE}
+options(knitr.kable.NA = '')
+knitr::kable(anova(party_model5, party_model4), 'html')
+```
+
+The difference is not statistically significant, implying the influence of race is not different for men versus women.
+
+## Ordinal models
+
+Ordered logistic/probit regression models are implemented by the `polr` function from the **MASS** (_Modern Applied Statistics with S_) package.
+
+This section uses the data in [`housing.dta`](http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/8_Categorical/data/housing.dta).
+These data concern levels of satisfaction among tenants of different types of housing, according how much contact they have with other residents and how much influence they feel they have over the management of their housing.
+
+```{r}
+housing <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/8_Categorical/data/housing.dta')
+```
+
+### Use `levels` to inspect the different factor levels.
+
+```{r}
+lapply(housing, levels)
+```
+
+### Does the degree of satisfaction depend on which type of housing the tenant lives in? (Use `MASS::polr`)
+
+```{r}
+library(MASS)
+housing_model <- polr(satisfaction ~ housing, data = housing,
+                      method = 'logistic')
+summary(housing_model)
+```
+
+### With which type of housing are the tenants most satisfied?
+
+From the output above, all terms are negative, the reference level (tower blocks) have the most satisfied tenants.
+
+### Test whether influence and contact are significant predictors of satisfaction.
+
+```{r}
+housing_model2 <- polr(satisfaction ~ influence + contact, data = housing,
+                       method = 'logistic')
+summary(housing_model2)
+exp(confint(housing_model2))
+```
+Confidence intervals for the odds ratios do not contain 1 (and for the log-odds do not contain 0), suggesting that the predictors are significant at the 5% level.
+
+### Create a multivariate model for predicting satisfaction from all of the variables that were significant univariately. Are these predictors all independently significant?
+
+```{r}
+housing_model3 <- polr(satisfaction ~ housing + influence + contact,
+                       data = housing, method = 'logistic')
+exp(confint(housing_model3))
+```
+
+None of these confidence intervals of odds contains 1, implying all are significant.
+
+### Does the effect of `influence` depend on which type of housing a subject lives in? (i.e. is the `influence:housing` interaction significant?)
+
+```{r}
+housing_model4 <- polr(satisfaction ~ housing * influence, data = housing,
+                       method = 'logistic')
+housing_model5 <- update(housing_model4, ~ . - housing:influence)
+anova(housing_model5, housing_model4)
+```
+The $\chi^2$ test statistic is significant at the 5% level, implying there is an interaction effect.

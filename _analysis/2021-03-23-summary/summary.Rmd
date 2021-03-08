@@ -1,0 +1,43 @@
+---
+title: "Analytical Epidemiology I: Summarising Data"
+description: |
+  Types of data. Qualitative data. Quantitative data.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-03-23
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+This lecture forms part of the Introduction to Epidemiology course offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+There are two sessions on analytical epidemiology: this first session covers descriptive statistics; the second session (next week) introduces statistical inference.
+
+Much of the material overlaps with the first few lectures in the [Statistical Modelling with Stata course](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html), for which materials are available online.
+There is less emphasis on statistical software here.
+Examples, where provided, will be in the R programming language.
+Unlike Stata, R is completely free, so you don't need an institutional software licence to follow along at home.
+Download it from the [Comprehensive R Archive Network](https://cran.r-project.org/).
+
+If you have questions or comments about any of these materials, please contact david.selby@manchester.ac.uk.
+
+## Introduction
+
+
+
+## Types of data
+
+## Qualitative data
+
+## Quantitative data
+
+## Further considerations

@@ -1,0 +1,18 @@
+---
+title: "David Selby"
+image: "https://warwick.ac.uk/fac/sci/statistics/staff/research_students/selby/david_selby.jpg"
+links:
+  - label: LinkedIn
+    url: "https://linkedin.com/daselby"
+  - label: Twitter
+    url: "https://twitter.com/TeaStats"
+  - label: GitHub
+    url: "https://github.com/Selbosh"
+  - label: Email
+    url: "mailto:david.selby@manchester.ac.uk"
+output:
+  postcards::jolla
+---
+ 
+I am a research associate in data science at the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk), University of Manchester, UK.
+My research interests include functional data analysis of responses in mobile health studies.

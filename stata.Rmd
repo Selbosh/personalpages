@@ -1,0 +1,6 @@
+---
+title: "Statistical Modelling with R"
+description: |
+  Dr Mark Lunt's course 'Statistical Modelling with Stata', translated into R.
+listing: stata
+---

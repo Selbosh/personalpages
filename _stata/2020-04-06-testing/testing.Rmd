@@ -1,0 +1,370 @@
+---
+title: "Lecture 4: Hypothesis Testing"
+description: |
+  Performing null hypothesis significance testing for means, proportions and variances with one or two samples. Using base R and community packages to do power calculations.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2020-04-06
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: testing_files/figure-html5/power-calculation-1.png
+---
+
+This worksheet is based on the fourth lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Inference about a proportion
+
+*This section is bookwork and does not require R or Stata.*
+
+Out of 80 women in a random sample of women in Manchester, 13 were asthmatic; this could be used to calculate a 95% confidence interval for the proportion of women in Manchester with asthma.
+This confidence interval could be compared to the suggested prevalence of 20% in Northern England.
+An alternative approach would be to test the hypothesis that the true proportion, π, is 0.20.
+
+1. What is the expected proportion of women with asthma under the null hypothesis?
+
+2. What is the observed proportion of women with asthma?
+
+3. What is the standard error of the expected proportion?
+Remember from last week that the standard error of a proportion *p* is given by
+\[\sqrt{\frac{p (1 - p)}{n}}.\]
+
+4. The appropriate test statistic, *T*, is given by the formula:
+\[T = \frac{\text{observed proportion} - \text{expected proportion}}{\text{standard error of proportion}}.\]
+Calculate T.
+
+5. *T* should be compared to a *t*-distribution with how many degrees of freedom?
+
+6. From tables for the appropriate t-distribution, the corresponding *p*-value is 0.4.
+Is it reasonable to suppose that these women are a random sample from a population in which the prevalence of asthma is 20%?
+
+## More inference about a proportion
+
+*This section is bookwork and does not require R or Stata.*
+
+In the sample heights and weights we have looked at, there were 412 individuals of whom 234 were women.
+We wish to test that there are equal numbers of men and women in our population.
+
+1. What is the null hypothesis proportion of women?
+
+2. What is the observed proportion of women?
+
+3. What is the null hypothesis standard error for the proportion of women?
+
+4. What is an appropriate statistic for testing the null hypothesis?
+
+## Inference about a mean
+
+Load [`htwt.csv`](../2020-04-02-summarising/htwt.csv) into R either by saving the CSV file to your desktop and running the command
+
+```{r, eval = FALSE}
+htwt <- read.csv('htwt.csv')
+```
+
+or else you can import it directly from the internet.
+
+```{r}
+htwt <- read.csv('http://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-02-summarising/htwt.csv')
+```
+
+We wish to test whether the mean height is the same in men and women.
+
+1. What is the null hypothesis difference in height between men and women?
+
+2. Use the function [`t.test()`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) to test whether the mean height differs between men and women.
+
+3. What is the mean height in men?
+
+4. What is the mean height in women?
+
+5. What is the mean difference in height between men and women, with its 95% confidence interval?
+
+6. Which of the three hypothesis tests is the appropriate one in this instance?
+
+7. What is the *p*-value from the *t*-test?
+
+8. What would you therefore conclude?
+
+```{r}
+t.test(nurseht ~ sex, data = htwt)
+```
+
+Unlike Stata, the R function `stats::t.test` does not perform all three tests at once.
+Check the documentation for [`help(t.test)`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) (click on the code above) to decide what to pass to the argument `alternative`.
+
+In this case it turns out that the default value, `two.sided`, is actually the correct choice.
+
+## Two-sample *t*-test
+
+Compare BMI (based on the measured values, i.e. `bmi`) between men and women in `htwt.csv`, again using the [`t.test()`](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html) function in R.
+
+### Is there a difference in BMI between men and women?
+
+```{r}
+t.test(bmi ~ sex, data = htwt)
+```
+
+### What is the mean difference in BMI between men and women and its 95% confidence interval?
+
+The means and confidence interval are given in the test output, above.
+
+- The mean difference is &minus;0.5 kg m^&minus;2^, to 1 decimal place.
+- The 95% confidence interval is (&minus;1.4, 0.4)kg ^&minus;2^.
+
+### Is there a difference in the standard deviation of BMI between men and women?
+
+There are a few different tests we can do here.
+
+- An *F*-test, assuming normality
+- A Bartlett test, assuming normality
+- Ansari--Bradley test, nonparametric
+- Mood test, nonparametric
+
+```{r, eval = FALSE}
+var.test(bmi ~ sex, data = htwt)
+bartlett.test(bmi ~ sex, data = htwt)
+ansari.test(bmi ~ sex, data = htwt)
+mood.test(bmi ~ sex, data = htwt)
+```
+
+In the [Stata documentation](https://www.stata.com/manuals13/rsdtest.pdf), it appears that `sdtest` performs a [Levene's test](https://en.wikipedia.org/wiki/Levene%27s_test), using the mean as the estimator of central tendency, but offers the option of the more robust test of [Brown and Forsythe (1974)](https://en.wikipedia.org/wiki/Brown%E2%80%93Forsythe_test), which uses the median or a trimmed mean.
+Levene's test is available in R via the `car` (*Companion to Applied Regression*) package.
+
+```{r eval = FALSE}
+library(car)
+leveneTest(bmi ~ sex, center = mean)             # Stata default
+leveneTest(bmi ~ sex, center = median)           # Stata alternative W_50
+leveneTest(bmi ~ sex, center = mean, trim = 0.1) # Stata alternative W_10
+```
+
+Each of these tests gives different results, implying there is not a lot of evidence either way, and that the conclusions depend on assumptions of each test---especially whether the data in each group are normally distributed.
+A visualisation allows us to check this, and suggests that the data have roughly similar scale, but are skewed by several outliers.
+
+```{r hist-bmi-sex, fig.width = 6}
+library(ggplot2)
+ggplot(htwt) +
+  aes(x = bmi, fill = sex) +
+  geom_histogram(bins = 25) +
+  facet_wrap(~sex, nrow = 2)
+```
+
+I would probably conclude by saying there is insufficient evidence to support the hypothesis that the variances are not equal.
+The only tests that suggest otherwise are dependent on the assumption of normality, which does not appear to hold if the small number of very high BMIs are taken into account.
+Thus, an analysis that uses Stata's `sdtest` with default settings possibly leads to an erroneous result in this case.
+
+### If there is, repeat the *t*-test you performed above, using the `var.equal` option. Are your conclusions any different?
+
+In R, the default for a two-sample *t*-test is `var.equal = FALSE`, which means it assumes that the variances are different.
+To perform a test where the variances are equal, set this argument equal to `TRUE`.
+
+```{r}
+t.test(bmi ~ sex, data = htwt, var.equal = TRUE)
+```
+
+The conclusion is the same, in any case.
+
+## One sample *t*-test
+
+Download the [`bpwide.csv`](../2020-04-03-sampling/bpwide.csv) dataset to your computer and import it into R with the command
+
+```{r, eval = F}
+bpwide <- read.csv('bpwide.csv')
+```
+
+or download it directly from the internet with
+
+```{r}
+bpwide <- read.csv('http://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-03-sampling/bpwide.csv')
+```
+
+This consists of fictional blood pressure data, taken before and after an intervention.
+We wish to determine whether the intervention had affected the blood pressure.
+
+### Calculate the mean blood pressure before and after the intervention. Has the blood pressure increased or decreased?
+
+```{r}
+summary(bpwide[, 4:5])
+```
+
+### Define a variable containing the change in blood pressure.
+
+```{r}
+bp_diff <- with(bpwide, bp_after - bp_before)
+```
+
+### Use the `t.test` function to test whether the change in blood pressure is statistically significant. Is it?
+
+```{r}
+t.test(bp_diff)
+```
+
+We can avoid creating the intermediate variable by doing an equivalent paired test:
+
+```{r}
+with(bpwide, t.test(bp_after, bp_before, paired = TRUE))
+```
+
+The difference appears to be statistically significant at the 5% level.
+
+### Give a 95% confidence interval for the change in blood pressure.
+
+It is already given in the output above, but to be thorough, we can work through it step by step.
+As we are looking at a difference in means, we compare the sample blood pressure difference to a Student's _t_ distribution with $n - 1$ degrees of freedom, where $n$ is the number of patients.
+
+*By hand*: the formula for a two-sided $(1-\alpha)$ confidence interval for a sample of size $n$ is
+\[Pr\left(\bar{X}_n - t_{n-1}(\alpha/2) \frac{S_n}{\sqrt n} < \mu < \bar{X} + t_{n-1}(\alpha/2) \frac{S_n}{\sqrt n}\right) = \alpha \]
+
+In R, the `q` family of functions returns quantiles of distributions (just as we have seen the `r` family draws random samples from those distributions).
+So `qnorm` finds the quantiles of the normal distribution, `qt` the quantiles of the Student's *t*-distribution, and so on.
+We can use it to retrieve the 2.5% and 97.5% quantiles of the *t* distribution with $n-1$ degrees of freedom and then plug them into the above formula, like so:
+
+```{r}
+n <- length(bp_diff)
+mean(bp_diff) + qt(c(.025, .975), df = n - 1) * sd(bp_diff) / sqrt(n)
+```
+
+This interval is the same as that given in the `t.test` output in the previous question.
+
+## Power calculations
+
+A near equivalent to Stata's `sampsi` command in this case is the `power.prop.test` function.
+There are also analogous functions: `power.t.test` and `power.anova.test`.
+They can be used to compute power of a test, or the parameters needed to obtain a specified power.
+
+### How many subjects would need to be recruited to have 90% power to detect a difference between unexposed and exposed subjects if the prevalence of the condition is 25% in the unexposed and 40% in the exposed, assuming equal numbers of exposed and unexposed subjects?
+
+```{r}
+power.prop.test(power = .9, p1 = .25, p2 = .4)
+```
+
+The difference between R and Stata here is that `sampsi` (which has been replaced by `power` in Stata 13) uses continuity correction by default, whereas `power.prop.test` in R does not.
+
+### If the exposure was rare, so it was decided to recruit twice as many unexposed subjects as exposed subjects, how many subjects would need to be recruited?
+
+The **Hmisc** package contains some useful functions for power calculations for two-sample binomial tests.
+
+```{r}
+library(Hmisc)
+bsamsize(p1 = .25, p2 = .40, fraction = .667, power = .90)
+```
+
+### Suppose it were only possible to recruit 100 subjects in each group. What power would the study then have?
+
+```{r}
+power.prop.test(n = 100, p1 = .25, p2 = .4)
+bpower(.25, .4, n = 200)
+```
+
+### Suppose that we expect a variable to have a mean of 15 and an SD of 5 in group 1, and a mean of 17 and an SD of 6 in group 2. How large would two equal sized groups need to be to have 90% power to detect a difference between the groups?
+
+There is not an argument for heteroscedastic groups in `power.t.test`, but all that is needed is to plug in the pooled standard deviation, using the formula
+\[\sigma_{\text{pooled}}^2 = \frac{n_1\sigma_1^2 + n_2\sigma_2^2}{n_1 + n_2}.\]
+
+```{r}
+power.t.test(delta = 17 - 15,
+             sd = sqrt((5^2 + 6^2) / 2),
+             power = .9)
+```
+
+### If we wanted 95% power, how large would the groups have to be?
+
+```{r}
+power.t.test(delta = 17 - 15,
+             sd = sqrt((5^2 + 6^2) / 2),
+             power = .95)
+```
+
+### Suppose we could only recruit 100 subjects in group 1. How many subjects would we have to recruit from group 2 to have 90% power?
+
+There is no base R function for two-sample *t*-tests with unequal group sizes, but we can try to figure it out.
+
+Recall that **power** is the probability of rejecting the null hypothesis if it is false.
+That is, the probability, under the alternative hypothesis, of the effect size being greater than or equal to the critical value.
+
+The degrees of freedom of the \(t\) distribution for a two-sample $t$-test are given by the formula
+\[m =
+\frac{
+\left(\frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2}\right)^2
+}{
+\dfrac{\left(\frac{\sigma_1^2}{n_1}\right)^2}{\small{n_1 - 1}}
++
+\dfrac{\left(\frac{\sigma_2^2}{n_2}\right)^2}{\small{n_2 - 1}}
+},\]
+and the non-centrality parameter (of the $t$-distribution under the alternative hypothesis) is given by
+\[\lambda = \frac{\delta}{\sqrt{\frac{\sigma_1^2}{n_1} + \frac{\sigma_2^2}{n_2}}}.\]
+
+So we can write functions to compute each, calculate the corresponding critical values of the central $t$-distribution and the $p$-values of the non-central $t$-distribution and we shall get the power for a given pair of group sizes.
+
+```{r, fig.width = 5, fig.height = 4}
+degfreedom <- function(sd1, sd2, n1, n2) {
+   numerator <- (sd1^2 / n1 + sd2^2 / n2)^2
+   denom1 <- (sd1^2 / n1)^2 / (n1 - 1)
+   denom2 <- (sd2^2 / n2)^2 / (n2 - 1)
+   numerator / (denom1 + denom2)
+}
+
+noncentrality <- function(delta, sd1, sd2, n1, n2) {
+  delta / sqrt(sd1^2 / n1 + sd2^2 / n2)
+}
+
+tpower <- function(delta, sd1, sd2, n1, n2) {
+  m <- degfreedom(sd1, sd2, n1, n2)
+  lambda <- noncentrality(delta, sd1, sd2, n1, n2)
+  critval <- qt(c(.025, .975), df = m)
+  power <- pt(critval[1], lower.tail = TRUE,
+              df = m, ncp = lambda) +
+    pt(critval[2], lower.tail = FALSE,
+       df = m, ncp = lambda)
+}
+```
+
+Compute the group sizes over a grid of points and plot the result, to see which gives the approximately 90% power.
+
+```{r power-calculation, fig.width = 6, fig.height = 4.5, fig.cap = 'Power against group 2 size'}
+points <- data.frame(n2 = seq(150, 400, by = 10))
+points$beta <- sapply(points$n2,
+                      function(n2) tpower(2, 5, 6, 100, n2))
+
+plot(beta ~ n2, data = points, type = 'l')
+abline(h = .9, lty = 2, col = 'red')
+abline(v = 283, lty = 2, col = 'red') # approx position where lines meet
+```
+
+This gives an optimum size of approximately 280 for the second group.
+
+You don't need to roll your own function every time you want to do this calculation!
+A bit of Googling reveals the **MESS** package has exactly the tool we seek.
+
+Specify all but one of the parameters to `power_t_test()` and it will output the desired answer.
+Here we know the size of the smaller group (`n`), the difference in means (`delta`), the standard deviation of the smaller group (`sd`), the desired `power` and the ratio in standard deviations (`sd.ratio`).
+We set `ratio`, the relative size of the groups, to `NULL` and it will estimate it for us.
+
+```{r}
+# install.packages('MESS')
+library(MESS)
+power_t_test(n = 100,          # size of smaller group
+             delta = 17 - 15,  # mean difference
+             sd = 5,           # sd of smaller group
+             ratio = NULL,     # relative size of the 2 groups
+             power = .9,       # power
+             sd.ratio = 6 / 5) # relative size of standard deviations
+```
+
+The output sample size is similar to that indicated by our hand calculation, above.
+
+This isn't the only tool you could use.
+You might also like to try the [**pwr** package](https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html).
+

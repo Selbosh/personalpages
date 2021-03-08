@@ -1,0 +1,9 @@
+---
+title: "Analytical Epidemiology"
+description: |
+  Course materials for the Analytical Epidemiology lectures, part of the Introduction to Epidemiology series at the Centre for Epidemiology Versus Arthritis, University of Manchester.
+listing: analysis
+---
+
+
+

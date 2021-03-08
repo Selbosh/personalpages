@@ -1,0 +1,9 @@
+---
+title: "R-thritis Statistical Computing Group"
+description: |
+  R-thritis is the R user group at the Centre for Epidemiology Versus Arthritis.
+listing: rthritis
+---
+
+
+

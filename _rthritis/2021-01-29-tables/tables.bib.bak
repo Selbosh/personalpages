@@ -1,0 +1,26 @@
+% Encoding: UTF-8
+
+@Article{Dixon2019,
+  author    = {William G. Dixon and Anna L. Beukenhorst and Belay B. Yimer and Louise Cook and Antonio Gasparrini and Tal El-Hay and Bruce Hellman and Ben James and Ana M. Vicedo-Cabrera and Malcolm Maclure and Ricardo Silva and John Ainsworth and Huai Leng Pisaniello and Thomas House and Mark Lunt and Carolyn Gamble and Caroline Sanders and David M. Schultz and Jamie C. Sergeant and John McBeth},
+  journal   = {npj Digital Medicine},
+  title     = {How the weather affects the pain of citizen scientists using a smartphone app},
+  year      = {2019},
+  month     = oct,
+  number    = {1},
+  volume    = {2},
+  doi       = {10.1038/s41746-019-0180-3},
+  publisher = {Springer Science and Business Media {LLC}},
+}
+
+@InCollection{Xie2014,
+  author    = {Yihui Xie},
+  booktitle = {Implementing Reproducible Computational Research},
+  publisher = {Chapman and Hall/CRC},
+  title     = {knitr: A Comprehensive Tool for Reproducible Research in {R}},
+  year      = {2014},
+  editor    = {Victoria Stodden and Friedrich Leisch and Roger D. Peng},
+  note      = {ISBN 978-1466561595},
+  url       = {http://www.crcpress.com/product/isbn/9781466561595},
+}
+
+@Comment{jabref-meta: databaseType:bibtex;}

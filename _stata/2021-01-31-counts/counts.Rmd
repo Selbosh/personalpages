@@ -1,0 +1,699 @@
+---
+title: "Lecture 9: Modelling Counts"
+description: |
+  Poisson regression, constraints, overdispersion. Negative binomial regression.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-01-31
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+---
+
+This worksheet is based on the ninth lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE}
+basedir <- 'http://personalpages.manchester.ac.uk/staff/mark.lunt'
+datadir <- file.path(basedir, 'stats/9_Counts/data')
+```
+
+Though the original datasets were in the Stata-specific `.dta` mode, I have converted them for you into the more universal `.csv` format.
+Thus you can import them using the built-in `read.csv` or `read.table` functions (or the method of your choice).
+
+## Poisson regression
+
+In this section you will be analysing the dataset `ships` provided in the **MASS** (*Modern Applied Statistics with S*) package.
+This is data from Lloyds of London concerning the rate at which damage occurred at different times to different types of ship.
+
+There are five `type`s of ship (labelled “A” to “E”), which could have been built in any one of four time periods (`year`), and sailed during one of two time `period`s.
+The aggregate duration of operation of each type of ship (in months) is given by `service`, and the number of incidents of damage is given by `incidents`.
+
+```{r load ships}
+data(ships, package = 'MASS')
+```
+
+### Familiarise yourself with the meanings of the variables.
+
+```{r, eval = F}
+help(ships, package = 'MASS')
+```
+
+Convert the columns `period`, `type` and `year` to factor (if they are not already) and set the reference level of `type` to "E" and `year` to "75" (1975--1979) with the `relevel` function.
+
+```{r}
+ships <- transform(ships,
+                   period = as.factor(period),
+                   type = relevel(as.factor(type), 'E'),
+                   year = relevel(as.factor(year), '75'))
+```
+
+### Are there any differences in the rates at which damage occurs according to the type of ship?
+
+Fit a generalised linear model with a logarithmic link function.
+The R equivalent of Stata's `exposure` in a log-linear model is to wrap the log of the variable in `offset()` on the right-hand side of the model formula.
+
+Obviously we can't take logarithms of zero, so ignore classes of ships that did not see any service (using `subset` in `glm`, or otherwise by removing these rows from the data frame).
+
+So we don't have to write this out repeatedly, we'll create a model just for the offset term and then generate our other models by adding terms with `update()`.
+
+```{r}
+model_null <- glm(incidents ~ offset(log(service)), family = poisson,
+                  data = ships, subset = service > 0)
+model_type <- update(model_null, ~ . + type)
+anova(model_type)
+```
+Unlike `lm` objects, when you apply `anova` to `glm` objects in R it doesn't automatically perform the test for you.
+But you can carry it out yourself.
+
+The $\chi^2$ test statistic is 55.4 on 4 degrees of freedom, giving a *p*-value of
+
+```{r}
+pchisq(deviance(model_null) - deviance(model_type),       # = 55.4
+       df.residual(model_null) - df.residual(model_type), # = 4
+       lower.tail = FALSE)
+```
+which is effectively zero, hence the `type` term is highly significant.
+
+*Note*. In this case, `anova(model_type)` gives equivalent output to `anova(model_null, model_type)`.
+
+### Are there any differences in the rates at which damage occurs according to the time at which the ship was built?
+
+```{r}
+model_built <- update(model_null, ~ . + year)
+anova(model_built) # or anova(model_null, model_built)
+```
+The `year` term is highly significant and once again gives a *p*-value of near-zero.
+(You can verify this using the method given in the previous question.)
+
+### Are there any differences in the rates at which damage occurs according to the time in which the ship was operated?
+
+```{r}
+model_sailed <- update(model_null, ~ . + period)
+anova(model_sailed)
+```
+Again the term is highly significant.
+
+### Now add all three variables into a multivariate Poisson model. Test if ship type is significant after adjusting for the other predictors.
+
+Applying the function `anova(model)` implicitly compared `model` with the null.
+Here we want to compare the full model with one that includes every term except `type`.
+We use the `anova(model1, model2)` syntax to get the corresponding $\chi^2$ test statistic.
+
+```{r}
+model_full <- glm(incidents ~ offset(log(service)) + year + period + type,
+                  family = poisson,
+                  data = ships, subset = service > 0)
+model_built_sailed <- update(model_full, ~ . - type)
+anova(model_built_sailed, model_full)
+```
+The resulting *p*-value is therefore
+
+```{r}
+pchisq(deviance(model_built_sailed) - deviance(model_full),      
+       df.residual(model_built_sailed) - df.residual(model_full),
+       lower.tail = FALSE)
+```
+which implies that the effect of ship type is still significant after the other factors are taken into account.
+
+### Use function `fitted` (or `predict`) to obtain expected numbers of damage incidents. Compare the observed and expected numbers of incidents. For which type of ship and which time periods are the predicted values furthest from the observed values?
+
+The canonical Stata-like solution translated to R is something like
+
+```{r, eval = FALSE}
+ships <- subset(ships, service > 0)
+ships$pred_n <- fitted(model_full) # or predict(model_full)
+ships$diff <- abs(ships$incidents - ships$pred_n)
+ships[ order(ships$diff), ]
+```
+
+And then inspecting the resulting data frame (the last rows thereof) either using `View` or `tail` to see which type and time periods had the largest magnitude residuals.
+
+In **dplyr** the equivalent operations are:
+
+```{r, eval = F}
+library(dplyr)
+ships %>%
+  filter(service > 0) %>%
+  mutate(pred_n = fitted(model_full),
+         diff = abs(incidents - pred_n)) %>%
+  arrange(diff)
+```
+
+You can also get the residuals directly (rather than doing the subtraction yourself) using the `residuals` (aka `resid`) accessor function on the model object.
+
+```{r, eval = F}
+residuals(model_full, type = 'response')
+```
+
+So you can retrieve the desired row using
+
+```{r}
+ships <- subset(ships, service > 0)
+ships <- transform(ships,
+                   pred_n = fitted(model_full),
+                   resid = residuals(model_full, 'response'))
+ships[which.max(abs(ships$resid)), ]
+```
+And see that the least accurate prediction was for type D ships built in 1970--1974, operated in 1975--1979, with 11 damage incidents observed and 6.2 predicted by the model.
+
+### Test whether the model is adequate.
+
+The Stata command `estat gof` provides goodness-of-fit statistics for the model, which tests whether the observed and expected values are significantly different from one another.
+
+The [residual deviance](https://en.wikipedia.org/wiki/Deviance_(statistics)) is mentioned in the last line of output from `summary(model_full)`.
+The resulting *p*-value from the $\chi_{25}^2$ test is
+
+```{r}
+pchisq(deviance(model_full), # sum(resid(model_full, 'deviance')^2)
+       df.residual(model_full),
+       lower.tail = FALSE)
+```
+
+[Pearson's cumulative test statistic](https://en.wikipedia.org/wiki/Goodness_of_fit#Pearson's_chi-squared_test) (the other output of Stata's `estat gof`) is
+
+```{r, echo = -1}
+p_val <- pchisq(sum(resid(model_full, 'pea')^2), df.residual(model_full), lower = F)
+sum(residuals(model_full, 'pearson')^2)
+```
+
+which has `r df.residual(model_full)` degrees of freedom, giving a *p*-value of `r signif(p_val, 2)`.
+
+We therefore reject the null hypothesis that the observed data are drawn from the distribution specified by the fitted model.
+In other words, the model is not a great fit.
+
+### Add a term of the interaction between ship type and year of operation. Test whether this term is statistically significant.
+
+*Note.* The original Stata solution sheet appears to be wrong here, as it interacts ship type with `built`, rather than `sailed`, as asked in the question.
+First we will add the `type:built` interaction term, then later on we will answer the original question.
+
+```{r}
+inter_built <- update(model_full, ~ . + type:year)
+anova(model_full, inter_built)
+pchisq(deviance(model_full) - deviance(inter_built),
+       df.residual(model_full) - df.residual(inter_built),
+       lower.tail = FALSE)
+```
+
+The interaction between year built and type of ship is significant.
+The goodness-of-fit statistic yields $\chi_{`r df.residual(inter_built)`}^2$ = `r signif(deviance(inter_built), 3)`, with *p*-value
+
+```{r}
+pchisq(deviance(inter_built),
+       df.residual(inter_built),
+       lower.tail = FALSE)
+```
+
+implying that the model is now a good fit.
+
+Testing for the year of operation (as was originally asked in the question):
+
+```{r}
+inter_sailed <- update(model_full, ~ . + type:period)
+anova(model_full, inter_sailed)
+```
+
+The interaction term between year of operation and type of ship is not significant, so it does not appear to be worth adding that to the model.
+
+```{r}
+pchisq(deviance(model_full) - deviance(inter_sailed),
+       df.residual(model_full) - df.residual(inter_sailed),
+       lower.tail = FALSE)
+```
+
+## Negative binomial regression
+
+This section uses data concerning childhood mortality in three cohorts, from the dataset [`nbreg.csv`](nbreg.csv).
+The children were divided into seven age bands[^agegp], and the number of deaths, and the persons-months of exposure are recorded in `deaths` and `exposure` respectively.
+
+[^agegp]: The original Stata 13 `nbreg.dta` file contained `age_gp` as a column of labelled floating-point numbers. For cross-compatibility, I've converted this to a character vector.
+
+```{r load-nbreg, echo = -1}
+if (!file.exists('nbreg.csv')) {
+  nbreg <- readstata13::read.dta13(file.path(datadir, 'nbreg.dta'),
+                                   nonint.factors = TRUE)
+  write.csv(nbreg, 'nbreg.csv', row.names = FALSE)
+}
+nbreg <- read.csv('nbreg.csv')
+```
+
+### Fit a Poisson regression model using only cohort as a predictor. Are there differences in mortality rate between the cohorts?
+
+Firstly, convert cohort to a factor, so it doesn't get misinterpreted as a continuous variable.
+
+```{r}
+nbreg$cohort <- as.factor(nbreg$cohort)
+```
+
+Then, fit the generalised linear model.
+
+```{r}
+pois_mod <- glm(deaths ~ offset(log(exposure)) + cohort,
+                data = nbreg, family = poisson)
+summary(pois_mod)
+```
+
+There's no point actually trying to interpret the coefficients, for reasons explained in the next question.
+
+### Was a Poisson model appropriate? If not, why not?
+
+We want to check for [overdispersion](https://en.wikipedia.org/wiki/Overdispersion) in the model.
+A Poisson model is overdispersed (or *under*dispersed) if the variance is significantly greater (or smaller) than the mean.
+This is indicated by the ratio of deviance to residual degrees of freedom being different from 1.
+
+You can calculate the _overdispersion parameter_, which has definition
+\[\hat\phi = \sum_{i=1}^n \frac{r^2} {n - p + 1},\]
+the sum of the squared Pearson residuals divided by the residual degrees of freedom.
+Here we have
+
+```{r}
+sum(residuals(pois_mod, 'pearson')^2) / df.residual(pois_mod)
+```
+
+which you can also verify by fitting the same model with `family = quasipoisson` and looking at the dispersion parameter given in the model summary output.
+
+```{r, results = 'hide'}
+summary(qpois_model <- glm(deaths ~ offset(log(exposure)) + cohort,
+                           data = nbreg, family = quasipoisson))
+```
+Clearly, our model is very overdispersed, meaning the variance is much larger than the mean, and so the Poisson model is not appropriate.
+
+### Fit a negative binomial regression model to test the same hypothesis.
+
+We can use the function `glm.nb` from the **MASS** package.
+
+```{r}
+library(MASS)
+nb_model <- glm.nb(deaths ~ offset(log(exposure)) + cohort, data = nbreg)
+summary(nb_model)
+```
+
+There are no significant differences between cohorts.
+(Similarly, `anova(nb_model)` shows variation between cohorts is not significantly greater than within cohorts.)
+
+### What is the value of the parameter $\alpha$ and its 95% confidence interval?
+
+This refers to the model formulation
+\[\text{Var}(Y) = \mu(1 + \alpha \mu)\]
+mentioned in the lecture notes, hence $\alpha$ is the dispersion parameter for the quasi-negative binomial model.
+
+Be aware that the `MASS::glm.nb` summary output defines the dispersion parameter differently, with
+\[\text{Var}(Y) = \mu + \frac{\mu^2}{\theta}.\]
+A full explanation is given [here](https://stats.stackexchange.com/a/103579).
+The dispersion parameter $\alpha$ is therefore:
+
+```{r}
+1 / nb_model$theta
+```
+
+or you can compute it yourself:
+
+```{r, eval = F}
+X <- model.matrix(nb_model)
+W <- diag(weights(nb_model))
+cov_B <- vcov(nb_model)
+cov_B / solve(t(X) %*% W %*% X)
+```
+
+A confidence interval for $\theta = 1/\alpha$ is
+
+```{r}
+nb_model$theta + c(-1, 1) * 1.96 * nb_model$SE.theta
+```
+
+###  Fit a constant dispersion negative binomial regression model. Is $\delta$ significantly greater than 0 in this model ?
+
+From the lecture notes, this refers to the model parametrisation
+\[\text{Var}(Y) = \mu(1 + \delta),\]
+which is similar to the quasi-Poisson
+\[\text{Var}(Y) = \phi\mu,\]
+for a dispersion parameter $\phi$.
+
+[According to Brian Ripley](https://stat.ethz.ch/pipermail/r-help/2005-June/074552.html), the Stata command `nbreg` with option `dispersion(constant)` is not fitting a GLM at all.
+The constant-dispersion negative binomial described in Stata is possibly(?) analogous to a quasi-Poisson.
+However the dispersion parameter given in `summary(qpois_model)` is much larger than that given in the Stata solutions, so I'm not 100% sure.
+More details are in the [Stata documentation](https://www.stata.com/support/faqs/statistics/nbreg-variance-function/).
+
+### One possible source of the extra variation is a change in mortality with age. Fit a model to test whether mortality varies with age.
+
+(Since `cohort` was not sigificant, it is dropped for this model.)
+
+```{r}
+nb_null <- glm.nb(deaths ~ offset(log(exposure)), data = nbreg)
+nb_age <- update(nb_null, ~ . + age_gp)
+anova(nb_null, nb_age)
+```
+
+The likelihood ratio test statistic is 2 &times; `r signif(logLik(nb_age) - logLik(nb_null), 2)` on `r df.residual(nb_null) - df.residual(nb_age)` degrees of freedom, which is highly significant, suggesting mortality is different between age groups.
+
+### Would it be appropriate to use a Poisson regression to fit this model?
+
+No, because \(\theta = \alpha^{-1} = `r signif(nb_age$theta, 2)` ~ (= `r signif(1/nb_age$theta, 2)`^{-1})\), indicating overdispersion.
+
+### Now fit a negative binomial regression model with both age and cohort as predictors. Determine whether both age and cohort are independently significant predictors of mortality.
+
+As in Stata, this model struggles to converge.
+You can try to tweak the model fitting hyperparameters in `glm.control`.
+
+```{r}
+nb_age_cohort <- update(nb_age, ~ . + cohort) # throws lots of warnings
+```
+
+Or better yet, fit the model using Markov chain Monte Carlo (MCMC) via Stan.
+
+```{r, results = 'hide'}
+library(rstanarm)
+nb_age_cohort <- stan_glm.nb(deaths ~ age_gp + cohort, offset = log(exposure),
+                             data = nbreg, algorithm = 'sampling')
+```
+
+The 90% Bayesian posterior uncertainty ("credible") intervals are:
+
+```{r}
+posterior_interval(nb_age_cohort)
+```
+
+which do not contain zero for the age or cohort parameters, implying that age and cohort have an effect on mortality.
+
+### Is there overdispersion in this model?
+
+The 95% credible interval for the *reciprocal dispersion* is
+
+```{r}
+posterior_interval(nb_age_cohort, par = 'reciprocal_dispersion', prob = .95)
+```
+
+which are both greater than one, implying there is, if anything, *under*dispersion in the model, but no longer overdispersion.
+
+### Fit the same model using `family = poisson`. Does this model agree with the negative binomial model?
+
+"Fit the same model using (different model spec)" is maybe an odd way of phrasing this!
+Anyway, the equivalent Poisson model (back to using `stats::glm` again) is
+
+```{r}
+pois_age_cohort <- update(pois_mod, ~ . + age_gp)
+summary(pois_age_cohort)
+```
+This appears to agree with the negative binomial model: all terms are significant and the parameter estimates are almost identical to those given in the model `nb_age_cohort`.
+Moreover, the residual deviance implies no overdispersion (though possibly underdispersion).
+
+### Perform a goodness-of-fit test.
+
+```{r}
+pchisq(deviance(pois_age_cohort), df.residual(pois_age_cohort),
+       lower.tail = FALSE)
+```
+
+No longer significant, implying a good fit.
+
+## Using constraints
+
+This section uses the data on damage to ships from the dataset `MASS::ships`, again.
+
+### Refit (or retrieve) the final Poisson regression model considered in the first section. Which of the incidents rate ratios are not significantly different from 1?
+
+In R, the standard output returns log-incidence ratios, so you can either apply `exp` to the coefficients to get relative incidence ratios, or else on the logarithmic scale check which parameters' confidence intervals contain zero ($\log 1 = 0$).
+
+If you're working in the same R session as before, you should still have type "E" and construction year 1975--1979 as reference levels, resulting in output like below.
+(If your reference levels are construction year 1960--1964 and type "A", you can still make the same inferences, but the output will look different.)
+
+```{r, echo = -1}
+options(digits = 2)
+ship_model <- glm(incidents ~ offset(log(service)) + year + period + type,
+                  family = poisson(link = 'log'),
+                  data = ships, subset = service > 0)
+confint(ship_model)
+```
+Construction year 1960--1964 is not significantly different from 1975--1979 (though it's borderline).
+Types A and D are not significantly different from type E.
+
+### Add a column of predicted numbers of damage incidents to your data frame.
+
+```{r}
+ships$pred_n <- fitted(ship_model)
+```
+
+### Define a constraint to force the incidence rate rate for ships of type D to be equal to 1.
+
+In R, you accomplish this using `contrasts`.
+The default contrasts are `contr.treatment`, which means all comparisons are with the baseline factor level (type "A" by default, though we switched it to "E" in the first section).
+
+```{r}
+contrasts(ships$type)
+ship_model$contrasts
+```
+Assuming the question is not just asking us to change the reference level again (in which case we'd employ `relevel()`), we can construct a contrasts matrix where the reference level _and_ type D have rows equal to zero.
+
+```{r}
+type_contr <- contrasts(ships$type)
+type_contr['D', ] <- 0
+ship_model_D <- update(ship_model, contrasts = list(type = type_contr))
+```
+
+### How does the output of this model differ from the previous one?
+
+```{r}
+summary(ship_model_D)
+```
+The `typeD` row is now effectively blanked out, because the estimate is constrained to logit zero (relative incidence of 1) and has no standard error.
+The other parameter estimates have changed slightly, though not by a large amount.
+(Recall from earlier that the effect of type "D" is not statistically significant.)
+
+### Test the adequacy of this (constrained) model compared to the unconstrained model.
+
+Both give very similar results and indicate a lack of fit:
+
+```{r}
+# Original model:
+pchisq(deviance(ship_model), df.residual(ship_model), lower = F)
+# With type D constraint:
+pchisq(deviance(ship_model_D), df.residual(ship_model_D), lower = F)
+```
+
+### Define a second constraint to force the incidence ratio for ships of type E to be equal to 1.
+
+If type "E" is still your reference category, it does not make much sense to force it to be zero, as it is already.
+Hence we will relevel the factor so that type "A" is the new reference category, then add the constraint.
+
+```{r}
+# Reset factor levels to be alphabetical order
+levels(ships$type) <- sort(levels(ships$type)) # or `LETTERS[1:5]`
+
+# Make new contrasts matrix
+type_contr <- contrasts(ships$type)
+type_contr[c('D', 'E'), ] <- 0
+type_contr
+```
+
+### Fit a Poisson regression model with both of these constraints.
+
+```{r}
+ship_model_DE <- update(ship_model,
+                        contrasts = list(type = type_contr))
+```
+
+### How does the adequacy of this model compare to that of the previous one?
+
+```{r}
+pchisq(deviance(ship_model_DE),
+       df.residual(ship_model_DE),
+       lower.tail = F)
+```
+
+Lack of fit has got worse---this *p*-value is smaller than before.
+
+### It appears that the incidence rate ratio for being built in 1965--1969 is very similar to the incidence rate ratio for being built in 1970--1974. Define a new constraint to force these parameters to be equal.
+
+As building `contrasts` matrices becomes more complex, you might like to look up packages to simplify the process.
+Here I'll do it in base R.
+(I hope this is right!)
+
+```{r}
+levels(ships$year) <- sort(levels(ships$year))
+year_contr <- contrasts(ships$year)
+year_contr[, c('65', '70')] <- c(0, 1, 1, 0) / 2
+year_contr
+```
+Fit a Poisson regression model with all three constraints:
+
+```{r}
+ship_model_constr <- update(ship_model_DE,
+                            contrasts = list(type = type_contr,
+                                             year = year_contr))
+```
+
+In Stata's model summary output, the lines for the constrained construction years would be identical.
+In R, `summary(ship_model_constr)` will instead show `year70` as `NA`, since it is redundant.
+(Or, if we omit columns of zeros from the `contrasts` matrix, those rows will simply not appear.)
+Here, `year65` still has a valid estimate and standard error, since it was not constrained to take a specific value (only to be equal to that of `year70`).
+
+```{r}
+exp(cbind(estimate = coefficients(ship_model_constr),
+          confint(ship_model_constr)))
+```
+
+You can verify that they are treated the same (and that types "D" and "E" have no effect) by predicting on new data, for example:
+
+```{r}
+predict(ship_model_constr,
+        newdata = list(service = c(1, 1),
+                       type = c('D', 'E'),
+                       year = c('65', '70'),
+                       period = c('75', '75')))
+```
+
+###  What do you think is the reason for the difference you have just observed?
+
+They were not constrained to take a specific value.
+
+### Test the adequacy of this constrained model. Have the constraints that you have applied to the model had a serious detrimental effect on the fit of the model?
+
+```{r}
+pchisq(deviance(ship_model_constr),
+       df.residual(ship_model_constr),
+       lower.tail = F)
+```
+
+The fit has deteriorated slightly.
+
+### Obtain predicted counts from this constrained model.
+
+```{r}
+ships$pred_cn <- fitted(ship_model_constr)
+```
+
+### Compare the observed values with the predictions from the constrained and unconstrained models.
+
+We can use a scatterplot matrix.
+
+*Tip.* See `help(pairs)` for tips on how to get correlations in the same figure.
+
+```{r echo = FALSE}
+panel.cor <- function(x, y){
+    usr <- par('usr')
+    on.exit(par(usr))
+    par(usr = c(0, 1, 0, 1))
+    r <- round(cor(x, y), digits = 2)
+    txt <- paste0("R = ", r)
+    cex.cor <- 0.8 / strwidth(txt)
+    text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+```
+
+```{r corrplot, fig.height = 6, fig.width = 6}
+cor(ships[, c('incidents', 'pred_n', 'pred_cn')])
+
+pairs(ships[, c('incidents', 'pred_n', 'pred_cn')],
+      upper.panel = panel.cor)
+```
+
+From this, it appears the constraints have had little effect on the fit of the model; the correlation between predicted and observed values is still very high (though it has dropped slightly).
+
+If you wish, you can examine the observed and predicted values directly with `View(ships)` (or otherwise by printing them to the console).
+
+## Constraints in multinomial logistic regression
+
+Constraints can be applied to many different types of regression model.
+However, applying constraints when using `nnet::multinom` can be tricky because there are several equations.
+~~The syntax is then similar to the syntax we saw last week for `lincom`.~~
+
+For this part of the practical, we are using the same `alligators.dta` dataset that we saw last week.
+
+```{r}
+basedir <- 'http://personalpages.manchester.ac.uk/staff/mark.lunt/'
+alligators <- foreign::read.dta(
+  paste0(basedir, 'stats/8_Categorical/data/alligators.dta'))
+```
+
+### Use `levels` or `str` to remind yourself of the different variables.
+
+```{r}
+lapply(alligators, levels)
+```
+
+### Fit a multinomial logistic regression model to predict food choice from lake with the function `nnet::multinom()`.
+
+```{r, results = 'hide'}
+mn_model <- nnet::multinom(food ~ lake, data = alligators)
+```
+Are there significant differences between lakes in the primary food choice?
+
+```{r}
+anova(mn_model, update(mn_model, ~ 1))
+```
+Yes.
+
+### What are the odds ratios for preferring invertebrates to fish in Lakes Oklawaha, Trafford and George?
+
+Fish is the reference food choice.
+So the odds ratios are
+
+```{r}
+exp(coefficients(mn_model))['Invertebrate', ]
+```
+
+###  It appears that for the choice of invertebrates rather than fish, there is no significant difference between Lake Oklawaha and Lake Trafford. Define a corresponding constraint using `contrasts`.
+
+```{r}
+lake_contrasts <- contrasts(alligators$lake)
+lake_contrasts[, c('Oklawaha', 'Trafford')] <- c(0, 1, 1, 0) / 2
+lake_contrasts
+```
+
+Fit the constrained model.
+
+```{r results = 'hide'}
+mn_model2 <- update(mn_model,
+                    contrasts = list(lake = lake_contrasts))
+```
+Look at the new parameter estimates:
+
+```{r}
+exp(coefficients(mn_model2))
+```
+
+(Unlike `glm` objects, redundant parameters in a `multinom` are repeated, rather than marked as `NA`.)
+
+### Even Lake George does not appear to be significantly different from Lake Oklawaha and Lake Trafford. Define another corresponding constraint.
+
+```{r}
+lake_contrasts[] <- c(0, 1, 1, 1) / 3
+lake_contrasts
+```
+
+Fit a multinomial logistic regression model with both of these constraints.
+
+```{r, results = 'hide'}
+mn_model3 <- update(mn_model, contrasts = list(lake = lake_contrasts))
+```
+
+How does the common odds ratio for all three lakes compare to the 3 separate odds
+ratios you calculated previously?
+
+```{r}
+exp(coefficients(mn_model3))
+```
+
+The common odds ratio of 6.68 is somewhere in between the three previous estimates.
+Verify it with a single logistic regression:
+
+```{r}
+logistic <- glm(food == 'Invertebrate' ~ lake != 'Hancock',
+                data = alligators,
+                subset = food %in% c('Invertebrate', 'Fish'),
+                family = binomial)
+exp(coefficients(logistic))
+```
+

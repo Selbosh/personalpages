@@ -1,0 +1,148 @@
+---
+title: "Literate Programming in R Markdown"
+description: |
+  R Markdown is a tool for generating richly documented, reproducible analyses.
+  This worksheet introduces the basic steps in creating an R Markdown document.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-01-15
+# categories:
+#   - R Markdown
+output:
+  distill::distill_article:
+    self_contained: false
+preview: https://d33wubrfki0l68.cloudfront.net/26639e1fec7fa314b8fe521d1e8f97de10ff12a8/66448/images/bandtwo2.png
+twitter:
+  site: '@CfEUoM'
+  creator: '@TeaStats'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+rinline <- function(code) {
+  # Print inline R code with backticks without evaluating it
+  sprintf('``` `r %s` ```', code)
+}
+```
+
+This worksheet is to test your understanding of the talk *Literate Programming in R Markdown*, presented at the R-thritis Group on Friday 15^th^ January 2021.
+
+## Resources
+
+- [Talk slides](resources/LitProg.pdf) <i class="fas fa-file-pdf" title="PDF"></i>
+- [Example Markdown file](resources/anscombe.md) <i class="fas fa-file-alt" title=".md"></i>
+- [Example R Markdown file](resources/anscombe.Rmd) <i class="fab fa-r-project" title=".Rmd"></i>
+
+## Writing a Markdown document
+
+### Basic syntax
+
+Create a new file with the `.md` file extension, e.g. `hello.md`.
+Open this file in RStudio or your favourite plain-text editor, such as Notepad.
+See if you can recreate the following passage in Markdown syntax.
+
+> I am writing in Markdown. It is intended to be
+>
+> 1. easy to read and
+> 2. easy to write.
+> 
+> Literate programming *emphasises* the idea that source code should be human-readable **and** computer-executable.
+>
+> Like \(\LaTeX\), Markdown can support mathematical expressions, such as \(E = mc^2\).
+
+**Tip:** To remind yourself of Markdown syntax, see *Help > Markdown Quick Reference* in RStudio---or refer to the [talk slides](resources/LitProg.pdf).
+
+### Metadata
+
+Add a YAML header to the top of your file including a `title`, `author` and today's `date`.
+
+Convert your Markdown document into an HTML document and view it.
+
+**Tip**: There are several ways to convert a Markdown document:
+
+a. using RStudio’s *Knit* button,
+b. using `rmarkdown::render` or `knitr::knit` in the R console,
+c. using a hotkey in RStudio (see *Help > Keyboard Shortcuts Help*).
+
+### Images
+
+Let’s liven up the document a bit. Find a fun picture online and add it to your report.
+I quite like this one:
+
+(ref:chickcaption) Picture of a chick, by [Toni Cuenca](https://unsplash.com/photos/d5IK8oMMhmU)
+
+```{r chick, fig.cap = '(ref:chickcaption)', out.extra="class=external"}
+knitr::include_graphics('https://images.unsplash.com/photo-1506357997910-c76d3e4d3ecf?ixid=MXwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHw%3D&ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80')
+```
+
+## R Markdown documents
+
+Now that we know how to write and compile static documents, let’s start adding R code.
+
+Rename or copy your file so it has the extension `.Rmd`, e.g. `hello.Rmd`.
+(Or, in RStudio, use *File > New File > R Markdown...*)
+
+### R code chunks
+
+The `chickwts` dataset, included with R, describes an experiment on the effect of different diets on the early growth of chickens.
+It includes two columns: the `weight` in grams of the chicks after six weeks, and the `feed` type that was given to them.
+
+Add an R chunk that evaluates the following code.
+
+```r
+plot(chickwts$weight ~ chickwts$feed, xlab = 'Feed type')
+```
+
+It should initially look something like this.
+
+```{r chickweights}
+plot(chickwts$weight ~ chickwts$feed, xlab = 'Feed type')
+```
+
+Modify the code to add a nicer y-axis label (`ylab`) and some colours (`col`) to the plot.
+
+Tweak the chunk options so that the R code is hidden in your final document but the bar plot remains visible.
+
+**Tip**: remember, R code chunks take the form:
+
+``````r
+```{r} `r ''`
+# Your R code here
+```
+``````
+
+### Inline R code
+
+Write a short paragraph giving some summary statistics of your dataset, calculated in-line. 
+For example, you might want to describe the number of rows (`nrow`), mean (`mean`), minimum (`min`), maximum (`max`) and standard deviation (`sd`) for the `chickwts` dataset.
+
+__Tip__: evaluate R code inline using the syntax `r rinline('R_code_here')`; for example:
+"A chair has `r rinline('2+2')` legs".
+
+### Dynamic numbers
+
+Modify your `date` field in the YAML header so that it **automatically** includes the time/date that your document was last compiled.
+
+__Tip__: For the current time, try `Sys.time()` or `Sys.Date()`. If you aren't happy with the format in which the date/time is displayed, refer to `?format.POSIXct`.
+
+### Tables
+
+Include some/all of the `chickwts` dataset as a nice-looking table in your report.
+
+__Tip__: use the command `knitr::kable()`, in combination with `results = 'asis'` in your chunk options. Or, add `df_print: kable` to your document header. You can also try the `xtable` package, if you have it installed.
+
+### Chunks in chunks
+
+Remember your barplot from earlier? Reproduce that chunk's code (but not the plot again), without copying and pasting it, in an "Appendix" section at the end of your report.
+
+__Tip__: check the [talk slides](resources/LitProg.pdf).
+
+### Output formats
+
+Regenerate your entire report as a Word document. Then (only if you have \(\LaTeX\) installed), generate it as a PDF as well.
+

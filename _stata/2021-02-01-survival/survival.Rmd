@@ -1,0 +1,439 @@
+---
+title: "Lecture 10: Survival Analysis"
+description: |
+  Censoring. Survival curves and life tables. Comparing survival curves. Parametric regression. Cox regression.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-02-01
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: survival_files/figure-html5/ggsurv-confint-1.png
+---
+
+This worksheet is based on the tenth lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      fig.width = 6, fig.height = 5)
+basedir <- 'http://personalpages.manchester.ac.uk/staff/mark.lunt'
+datadir <- file.path(basedir, 'stats/10_survival/data')
+```
+
+## Life tables and survival curves
+
+This section uses the dataset [`leukaemia.csv`](leukaemia.csv).
+
+```{r load-leukaemia, echo = -1}
+if (!file.exists('leukaemia.csv')) {
+  leukaemia <- foreign::read.dta(file.path(datadir, 'leukaemia.dta'))
+  leukaemia$relapse <- as.integer(leukaemia$relapse == '1:yes')
+  write.csv(leukaemia, 'leukaemia.csv', row.names = FALSE)
+}
+leukaemia <- read.csv('leukaemia.csv')
+```
+
+First, load the **survival** package.
+
+```{r}
+library(survival)
+```
+
+The time variable is `weeks`, the number of weeks to relapse.
+The outcome variable is `relapse`, which is 1 if the subject had a relapse at that time and 0 if they did not.
+Create a corresponding survival object using the syntax `Surv(time, status)`.
+This will be on the left hand side of your model formula.
+
+First reorder the levels of `wbc3cat` so that 'Normal' is the reference group (for ease of comparison with the Stata solutions sheet).
+Similarly we can relevel `treatment1` so that 'Standard' is the first level (as otherwise 'Drug A' comes first, alphabetically).
+
+```{r}
+leukaemia <- transform(
+  leukaemia,
+  treatment1 = relevel(as.factor(treatment1), 'Standard'),
+  treatment2 = relevel(as.factor(treatment2), 'Standard'),
+  wbc3cat = factor(wbc3cat, levels = c('Normal', 'Moderate', 'High'))
+)
+```
+
+### Obtain a life table for the subjects on Drug A. What is the median survival in this group (at what time does the survival function reach 0.5)?
+
+```{r}
+survA <- survfit(Surv(weeks, relapse) ~ 1,
+                 data = leukaemia,
+                 subset = treatment1 == 'Drug A')
+summary(survA, times = unique(leukaemia$weeks)) # `times` is optional
+```
+At 23 weeks, the survival function drops below 0.5.
+
+### How many subjects were lost to followup in this treatment arm?
+
+```{r}
+table(leukaemia$relapse, leukaemia$treatment1)
+```
+
+12 subjects were lost to followup on Drug A.
+
+### Obtain a life table for the subjects on standard treatment. What is the median survival in this group?
+
+```{r}
+survStd <- update(survA, subset = treatment1 == 'Standard')
+summary(survStd)
+```
+The survival function drops below 0.5 after 8 weeks.
+
+### How many subjects were lost to followup in this treatment arm?
+
+Zero (see `table` output above).
+
+### Do the answers to your previous questions suggest that Drug A is better, worse, or the same as standard treatment?
+
+Median survival before relapse is better on Drug A (23 weeks) than standard treatment (8 weeks).
+
+### Produce a Kaplan-Meier curve for each of the treatments. Does this confirm your answer to the previous question?
+
+There are some basic plotting functions in the **survival** package.
+
+```{r survplot}
+surv_t1 <- survfit(Surv(weeks, relapse) ~ treatment1, data = leukaemia)
+
+plot(surv_t1, xlab = 'weeks', ylab = 'survival',
+     col = c(2, 4), main = 'Kaplan-Meier survival estimates')
+
+legend('topright',
+       names(surv_t1$strata),
+       col = c(2, 4), lty = 1,
+       bty = 'n')
+
+abline(h = 0.5, lty = 2) # median line
+```
+
+More tools for visualisation via **ggplot2** are provided in the [**survminer** package](https://rpkgs.datanovia.com/survminer/index.html), for which a helpful [cheat sheet](https://rpkgs.datanovia.com/survminer/survminer_cheatsheet.pdf) is available.
+There's less chance of mixing up the strata, as a legend is generated automatically by default:
+
+```{r ggsurvplot}
+library(survminer)
+ggsurvplot(surv_t1, surv.median.line = 'hv')
+```
+
+### Add a horizontal line to the graph at y = 0.5. This line represents half of the group surviving and half having a relapse: the point where it crosses the two survival curves should give you the median survival times you calculated in earlier questions.
+
+In base R graphics you can use `abline` and in **ggplot2** there is `geom_abline` or `geom_hline`.
+The `ggsurvplot` function has a dedicated argument called [`surv.median.line`](https://github.com/kassambara/survminer/issues/61) for this purpose.
+See above.
+
+### Add the number of subjects lost to followup in the two treatment arms to the corresponding time points on the graph.
+
+This is slightly contrived because R doesn't have a direct equivalent to the `lost` command.
+So here we'll show what's offered in **survival** and **survminer**.
+See the [survminer vignette](https://rpkgs.datanovia.com/survminer/) for more tips.
+
+```{r ggsurv-censor}
+ggsurvplot(surv_t1,
+           surv.median.line = 'hv',
+           censor = TRUE,
+           cumcensor = TRUE,
+           ncensor.plot = TRUE)
+```
+
+In base R, use the generic plotting functions `text()` or `points()` and extract the coordinates and values from the `survfit` object.
+
+```{r survplot-censor}
+# Original plot:
+plot(surv_t1, xlab = 'weeks', ylab = 'survival',
+     col = c(2, 4), main = 'Kaplan-Meier survival estimates')
+legend('topright', names(surv_t1$strata),
+       col = c(2, 4), lty = 1, bty = 'n')
+abline(h = 0.5, lty = 2)
+
+# Add censor labels:
+text(surv_t1$time, surv_t1$surv,
+     labels = surv_t1$n.censor,
+     # make label transparent if n.censor == 0
+     col = rgb(0, 0, 0, 0:1)[1 + (surv_t1$n.censor > 0)])
+```
+
+### Add confidence bands to your plot(s).
+
+Look in the documentation, depending on the plotting method you are using.
+Both base `plot.survfit` and `survminer::ggsurv` offer arguments `conf.int = TRUE`:
+
+```{r survfit-confint, echo = FALSE}
+plot(surv_t1, xlab = 'weeks', ylab = 'survival',
+     col = c(2, 4), main = 'Kaplan-Meier survival estimates',
+     conf.int = TRUE)
+legend('topright', names(surv_t1$strata),
+       col = c(2, 4), lty = 1, bty = 'n')
+```
+```{r ggsurv-confint, echo = FALSE}
+ggsurvplot(surv_t1,
+           surv.median.line = 'hv',
+           conf.int = TRUE,
+           censor = TRUE)
+```
+
+Why do the confidence bands get wider over time?
+Because they are based on smaller numbers.
+
+### Use `survdiff` to perform a logrank test to compare the survival on Drug A to that on standard treatment. Is the difference between Drug A and standard treatment statistically significant?
+
+You can actually just do this test and add it to your **survminer** plot with the arguments `pval` and `pval.method` both set to `TRUE`:
+
+```{r}
+ggsurvplot(surv_t1,
+           conf.int = TRUE,
+           censor = TRUE,
+           pval = TRUE, pval.method = TRUE)
+```
+Or do it the old-fashioned way using `survdiff()`:
+
+```{r}
+survdiff(Surv(weeks, relapse) ~ treatment1, data = leukaemia)
+```
+The difference is statistically significant: there are fewer relapses on Drug A than expected.
+
+### Would you have had the same answer to the previous question if you had used a Wilcoxon test in place of a logrank test?
+
+```{r}
+survdiff(Surv(weeks, relapse) ~ treatment1, data = leukaemia,
+         rho = 1)
+```
+## Cox regression
+
+### Have a look at the survival curves by white blood cell count. Does the white blood cell count affect survival?
+
+```{r}
+surv_wbc <- survfit(Surv(weeks, relapse) ~ wbc3cat, data = leukaemia)
+ggsurvplot(surv_wbc, conf.int = TRUE)
+```
+
+### Do a cross-tabulation of `treatment1` against `wbc3cat`. Are the proportions of subjects in each of the white blood cell counts categories the same in the two treatment arms?
+
+```{r}
+library(magrittr)
+xtabs(~ treatment1 + wbc3cat, data = leukaemia) %T>%
+  print %>%
+  proportions(margin = 1)
+```
+The standard treatment appears to have a greater proportion of people with high white blood cell counts, compared to those on Drug A.
+
+*Tip.* The `%T>%` pipe from **magrittr** lets us print _and_ pass the result of `xtabs` to the next function, without having to save the table to a temporary variable.
+
+### Given that proportion of subjects in the "High" cell count group is greater in the standard treatment arm than in the Drug A arm, would you expect this to have increased or decreased survival in this arm of the trial?
+
+Decreased, because leukaemia is a disease that causes high numbers of abnormal blood cells.
+
+### White blood cell count is a potential confounder, so we need to adjust for it. First, we will perform an unadjusted Cox regression to obtain the hazard ratio before adjusting. (Use function `coxph()`.) What is the hazard ratio for Drug A, and its 95% confidence interval?
+
+```{r}
+cox_unadj <- coxph(Surv(weeks, relapse) ~ treatment1, data = leukaemia)
+summary(cox_unadj)
+```
+The hazard ratio and confidence interval are given by
+
+```{r}
+exp(cbind(coef(cox_unadj), confint(cox_unadj)))
+```
+
+### Now obtain the adjusted hazard ratio. What is the adjusted hazard ratio and its 95% confidence interval?
+
+Fit the adjusted model and extract the hazard ratio and its 95% confidence interval:
+
+```{r}
+cox_adj <- update(cox_unadj, ~ . + wbc3cat)
+exp(cbind(HR = coef(cox_adj), confint(cox_adj)))[1, ]
+```
+
+### How did the confounding by white blood cell count affect the apparent effect of Drug A? Is this what you expected from the earlier questions?
+
+The beneficial effect of Drug A was exaggerated by the difference in white blood cell counts between the groups.
+The hazard ratio is larger (i.e. chance of relapse increased) after adjusting for it.
+
+### Now we need to test the proportional hazards assumption. First for treatment: produce a plot of the observed and predicted Kaplan Meier plots. Are the observed and predicted curves close to each other?
+
+To check the proportional hazards assumption, we can use `cox.zph()` from the **survival** package or `ggcoxzph()` from the **survminer** package.
+Check the documentation also for information on `ggcoxdiagnostics()` and `ggadjustedcurves()`.
+
+For example:
+
+```{r coxph}
+plot(cox.zph(cox_unadj))
+ggcoxdiagnostics(cox_unadj, 'schoenfeld', ox.scale = 'time')
+```
+
+We can also plot the observed versus expected survival curves, using `survfit`.
+
+```{r}
+dummy <- list(treatment1 = levels(leukaemia$treatment1))
+cox_surv <- survfit(cox_unadj, newdata = dummy)
+
+plot(surv_t1, col = c(2, 4), lty = 1,
+     xlab = 'weeks', ylab = 'survival')
+lines(cox_surv, col = c(2, 4), lty = 2)
+legend('topright',
+       c('observed', 'expected', levels(leukaemia$treatment1)),
+       lty = c(1, 2, 4, 4), col = c(1, 1, 2, 4))
+```
+
+(If there is a **ggplot2** or **survminer** approach, then it is left as an exercise.)
+
+### Now we can test the same assumption for the effect of white blood cell count. Are the observed and predicted curves close to each other?
+
+```{r}
+cox_wbc <- update(cox_unadj, ~ wbc3cat)
+plot(cox.zph(cox_wbc))
+
+dummy <- list(wbc3cat = levels(leukaemia$wbc3cat))
+cox_surv <- survfit(cox_wbc, newdata = dummy)
+
+plot(surv_wbc, col = c(2:4), lty = 1,
+     xlab = 'weeks', ylab = 'survival')
+lines(cox_surv, col = c(2:4), lty = 2)
+legend('topright',
+       c('observed', 'expected', levels(leukaemia$wbc3cat)),
+       lty = c(1, 2, 4, 4, 4), col = c(1, 1, 2:4))
+```
+
+### Perform a test of proportionality using Schoenfeld residuals. Is the regression model valid?
+
+*Note.* You can regenerate both Schoenfeld residual plots at once with
+
+```{r, eval = F}
+plot(cox.zph(cox_adj)) # not shown
+```
+To perform the test, simply print
+
+```{r}
+cox.zph(cox_adj)
+```
+
+None of the test statistics is significant, thereby implying that the proportional hazards assumption holds for each of the variables.
+
+### Obtain tests of proportionality for each individual variable. Is there any evidence of non-proportional hazards?
+
+The `cox.zph()` function did both sets of tests at once, so the answer is already given above.
+
+## Non-proportional hazards
+
+### There is a second drug used in this trial, stored in `treatment2`. Compare the survival curves for Drug B and standard treatment. How does the survival on Drug B compare to that on standard treatment during the first 10 weeks?
+
+```{r surv-t2}
+surv_t2 <- survfit(Surv(weeks, relapse) ~ treatment2, data = leukaemia)
+plot(surv_t2, col = c(2, 4), mark.time = TRUE)
+legend('topright', lty = 1, col = c(2, 4), names(surv_t2$strata))
+```
+
+```{r gg-surv-t2}
+ggsurvplot(surv_t2)
+```
+
+In the first 10 weeks, Drug B has worse survival than the standard treatment.
+
+### How does the survival on Drug B compare to that on standard treatment after the first 10 weeks?
+
+After 10 weeks, survival on Drug B is better than the standard treatment.
+
+### Superimpose the predicted survival curves from a Cox regression model. How do the predicted and observed curves differ?
+
+```{r obs-vs-exp-t2}
+cox_t2 <- coxph(Surv(weeks, relapse) ~ treatment2, data = leukaemia)
+dummy <- list(treatment2 = levels(leukaemia$treatment2))
+cox_surv2 <- survfit(cox_t2, newdata = dummy)
+plot(surv_t2, col = c(2, 4))
+lines(cox_surv2, col = c(2, 4), lty = 4, lwd = 2)
+legend('topright', lty = 1, col = c(2, 4), names(surv_t2$strata))
+legend('bottomleft', lty = c(1, 4), lwd = 1:2, c('observed', 'predicted'))
+```
+The observed survival curves intersect each other but the predicted curves do not (obviously, because they are based on a proportional hazards assumption).
+
+### Perform a Cox regression of `treatment2` and `wbc3cat`. Does Drug B have a significant effect on survival?
+
+```{r}
+cox_adj2 <- coxph(Surv(weeks, relapse) ~ treatment2 + wbc3cat,
+                  data = leukaemia)
+exp(confint(cox_adj2))
+```
+The effect of Drug B on survival is not statistically significant (the hazard ratio's 95% confidence interval contains 1).
+
+### Test the proportional hazards assumption using the Schoenfeld residuals.
+
+```{r}
+cox.zph(cox_adj2)
+```
+
+The proportional hazards assumption does not hold overall; specifically not for treatment 2.
+
+If you prefer visual tests:
+
+```{r}
+plot(cox.zph(cox_adj2)[1])
+```
+
+###  The Kaplan-Meier curves suggest that Drug B has a negative effect on survival initially, then becomes positive. So we will test for different effects before and after 10 weeks. Generate a life table.
+
+```{r}
+summary(surv_t2)
+```
+
+### Now, for each subject followed for more than 10 weeks, we will split the data into 2 observations, one for the time up to 10 weeks and one for the time after.
+
+There is a good tutorial [here](http://www.drizopoulos.com/courses/emc/ep03_%20survival%20analysis%20in%20r%20companion#step-functions-for-time-varying-coefficients) explaining the approach of using step functions for time-varying coefficients.
+We can use the function `survSplit()` for this.
+
+```{r}
+leuk2 <- survSplit(Surv(weeks, relapse) ~ treatment2 + wbc3cat,
+                   data = leukaemia, cut = 10, episode = 'time_group')
+```
+
+### Has the life table changed?
+
+```{r}
+surv_t2s <- survfit(Surv(tstart, weeks, relapse) ~ treatment2, data = leuk2)
+summary(surv_t2s)
+```
+
+No.
+
+### Examine the data. You should see that for subjects who were followed up for less than ten weeks, there is a single record. However, for those followed up for more than 10 weeks, there are two records: one with `tstart == 0` and one with `tstart == 10`.
+
+Look at `leuk2` (or whatever you decided to call the output of `survSplit`).
+
+### Now we can generate separate treatment variables for the treatment effect before and after 10 weeks.
+
+This has already been done for us with the `episode` argument of `survSplit`.
+We have a variable called `time_group`.
+
+### Now fit the Cox regression model with these predictors. What is the hazard ratio for [drug B before 10 weeks] with its 95% confidence interval?
+
+This involves an interaction between the `time_group` strata and `treatment2`.
+(Explained [here](http://www.drizopoulos.com/courses/emc/ep03_%20survival%20analysis%20in%20r%20companion#step-functions-for-time-varying-coefficients).)
+
+```{r, tidy = TRUE}
+cox_split <- coxph(Surv(tstart, weeks, relapse) ~ wbc3cat + treatment2 * strata(time_group), data = leuk2)
+
+exp(cbind(HR = coef(cox_split), confint(cox_split)))
+```
+
+### What is the hazard ratio for `t2`?
+
+See above.
+
+### Do these hazard ratios confirm what you were expecting?
+
+Yes, that Drug B increased risk initially, then reduced it.
+
+### Now test the proportional hazards assumption, using Schoenfeld residuals. Is the model now appropriate?
+
+```{r out.width = '33%'}
+cox.zph(cox_split) %T>% plot
+```
+The model is now appropriate and none of the predictors appear to show non-proportionality.

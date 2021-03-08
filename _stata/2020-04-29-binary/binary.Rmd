@@ -1,0 +1,446 @@
+---
+title: "Lecture 7: Modelling Binary Outcomes"
+description: |
+  Limits of linear regression and how these motivate generalised linear models. Introduction to logistic regression, diagnostics, sensitivity and specificity. Alternative models.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2020-04-29
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+---
+
+This worksheet is based on the seventh lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cross-tabulation and logistic regression
+
+Use the dataset [`epicourse.csv`](epicourse.csv).
+
+```{r load epicourse, echo = -1}
+if (!file.exists('epicourse.csv')) {
+  epicourse <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/7_Binary/data/epicourse.dta')
+  write.csv(epicourse, 'epicourse.csv', row.names = FALSE)
+}
+epicourse <- read.csv('epicourse.csv')
+```
+
+### Produce a table of hip pain by gender using the `table()` function. What is the prevalance of hip pain in men and in women?
+
+Generate a table of counts using
+
+```{r table sex}
+hip_tab <- with(epicourse, table(hip_p, sex))
+hip_tab
+```
+
+And you can convert this into a table of proportions within each sex (2nd margin) using:
+
+```{r proportions}
+prop.table(hip_tab, margin = 2)
+```
+
+*In R 4.0.0, you can also use the new `proportions()` function.*
+
+```{r}
+proportions(hip_tab, margin = 2)
+```
+
+### Perform a chi-squared test to test the hypothesis that there is a different prevalence of hip pain in men versus women.
+
+```{r chisq}
+chisq.test(hip_tab)
+```
+
+### Obtain the odds ratio for being female compared to being male. What is the confidence interval for this odds ratio?
+
+Recall the formula for an odds ratio is
+\[\text{OR} = \frac{D_E / H_E}{D_N / H_N},\]
+where \(D\) denotes 'diseased', \(H\) is 'healthy', \(E\) is 'exposed' (i.e. female) and \(N\) is 'not exposed' (i.e. male).
+
+```{r odds ratio}
+odds_ratio <- (hip_tab['yes', 'F'] / hip_tab['no', 'F']) /
+  (hip_tab['yes', 'M'] / hip_tab['no', 'M'])
+odds_ratio
+```
+
+And the Wald 95% confidence interval for the odds ratio given by
+\[\exp \left\{
+\log \text{OR}~\pm~z_{\alpha/2} \times \sqrt{\tfrac1{D_E} + \tfrac1{D_N} +\tfrac1{H_E} + \tfrac1{H_N}}
+\right\},\]
+where \(z_{\alpha/2}\) is the critical value of the standard normal distribution at the \(\alpha\) significance level.
+In R, this interval can be computed as follows:
+
+```{r OR confidence interval}
+exp(log(odds_ratio) + qnorm(c(.025, .975)) * sqrt(sum(1 / hip_tab)))
+```
+
+### How does the odds ratio compare to the relative risk?
+
+The relative risk is \[\text{RR} = \frac{D_E / N_E}{D_N / N_N},\]
+where \(N_E = D_E + H_E\) and \(N_N = D_N + H_N\) are the respective total number of exposed (female) and not-exposed (male) people in the sample.
+In R, it is
+
+```{r relative risk}
+rel_risk <- hip_tab['yes', 'F'] / colSums(hip_tab)['F'] /
+  (hip_tab['yes', 'M'] / colSums(hip_tab)['M'])
+rel_risk
+```
+
+which is similar to the odds ratio.
+
+### Does the confidence interval for the odds ratio suggest that hip pain is more common in one of the sexes?
+
+Yes, it suggests hip pain is more common in women, because the confidence interval does not contain 1.
+
+*I can't see any point in computing a relative risk confidence interval here, even if the Stata command `cs` reports it.*
+
+### Now fit a logistic regression model to calculate the odds ratio for being female, using the `glm` function. How does the result compare to that computed above?
+
+*Note.* The `glm` function needs responses to be between 0 and 1, so it won't work with a character vector of 'yes' and 'no'.
+An easy solution is to replace `hip_p` with `TRUE` and `FALSE` (which in R is the same as 1 and 0).
+Either do this before fitting the model, or inline:
+
+```{r logistic sex}
+model <- glm(hip_p == 'yes' ~ sex, data = epicourse,
+             family = binomial('logit'))
+summary(model)
+```
+
+In this model, the intercept parameter estimate represents the log-odds of having hip pain, for women (taken to be the baseline).
+The `sexM` is the additive effect (to these log-odds) from being a man.
+Thus the odds ratio is simply the exponential of the negation of this second parameter:
+
+```{r}
+exp(-coef(model)[2])
+```
+
+and this is the same as the value calculated above.
+
+### How does the confidence interval compare to that calculated above?
+
+```{r logistic confidence interval}
+exp(-confint(model, 'sexM'))
+```
+
+Same as above (just reversed, because female is the baseline in the model).
+
+## Introducing continuous variables
+
+Age may well affect the prevalence of hip pain, as well as gender. To test this, create an `agegroup` variable with the following code:
+
+```{r age group}
+epicourse$agegroup <- cut(epicourse$age, breaks = c(0, seq(30, 90, by = 10)))
+```
+
+### Tabulate hip pain against age group with the `table()` function. Is there evidence that the prevalence of hip pain increases with age?
+
+```{r table age}
+age_tab <- with(epicourse, table(hip_p, agegroup))
+age_tab
+chisq.test(age_tab)
+```
+
+There is evidence that the prevalence *changes* with age, however the test does
+not actually tell us the pattern or sign of the effect.
+
+### Add `age` to the logistic regression model for hip pain. Is age a significant predictor of hip pain?
+
+You can rewrite the model from scratch with `glm()`, or use this convenient shorthand:
+
+```{r logistic age}
+model2 <- update(model, ~ . + age)
+summary(model2)
+```
+
+It looks like the age coefficient is statistically significant.
+
+### How do the odds of having hip pain change when age increases by one year?
+
+It is a logistic model, so the parameter estimate represents the increase in log-odds for one year increase in age.
+
+```{r age coef}
+exp(coef(model2)['age'])
+```
+
+Thus odds of hip pain increase by `r round(exp(coef(model2)['age']), 2)` for each year increase in age.
+
+### Fit an appropriate model to test whether the effect of age differs between men and women.
+
+```{r logistic age sex interaction}
+model3 <- glm(hip_p == 'yes' ~ age * sex, data = epicourse, family = binomial)
+summary(model3)
+```
+
+The interaction term (`age:sexM`) is not significant, so men and women do not have different slopes in the model; the effect of advancing in age is not different between men and women.
+
+### Rather than fitting age as a continuous variable, it is possible to fit it as a categorical variable.
+
+Please, don't do this. The only justification for fitting such a model would be if the underlying continuous data were not available.
+
+### What are the odds of having hip pain for a man aged 55, compared to a man aged 20?
+
+We can do this more precisely using the continuous model (without the interaction term).
+
+```{r predict}
+man_55_20 <- predict(model2, newdata = list(sex = c('M', 'M'), age = c(55, 20)))
+man_55_20
+```
+
+The odds ratio is
+
+```{r predict odds ratio}
+exp(man_55_20[1] - man_55_20[2])
+```
+so a man of 55 is 2.5 times more likely to have hip pain than a man of 20.
+
+Or, if we only had categorical data available:
+
+```{r logistic categorical}
+model4 <- glm(hip_p == 'yes' ~ agegroup + sex, data = epicourse, family = binomial)
+man_55_20c <- predict(model4, newdata = list(sex = c('M', 'M'),
+                                             agegroup = c('(50,60]', '(0,30]')))
+exp(man_55_20c[1] - man_55_20c[2])
+```
+
+we would (erroneously) estimate a much larger effect.
+
+## Goodness of fit
+
+Look back at the logistic regression model that was linear in age.
+(There is no need to refit the model if it is still stored as a variable,
+e.g. `model2` in our case)
+
+### Perform a Hosmer--Lemeshow test. Is the model adequate, according to this test?
+
+I had never heard of this test before.
+There are packages in R that provide facilities to perform it, but rather than use those, I would just use standard diagnostics for generalized linear models.
+
+We can compare the fitted model to the null model via analysis of deviance:
+
+```{r analysis of deviance}
+null_model <- update(model2, ~ 1)
+anova(null_model, model2)
+```
+
+The change in deviance is much larger than the change in degrees of freedom, suggesting that the full model is an improvement over the null.
+A \(\chi^2\) test is also easy to perform:
+
+```{r logistic chisq test}
+anova(model2, test = 'Chisq')
+```
+
+Other options include tests based on Mallows' \(C_p\).
+
+### Obtain the area under the ROC curve.
+
+I also had to look this up.
+There are [various R packages](https://rviews.rstudio.com/2019/03/01/some-r-packages-for-roc-curves/) for computing and plotting ROC curves.
+It is another task you can do by hand, however.
+
+```{r roc}
+library(dplyr)
+roc <- data.frame(scores = predict(model2),
+                  labels = model2$y) %>%
+  arrange(desc(scores)) %>%
+  mutate(TPR = cumsum(labels) / sum(labels),    # True Positive Rate
+         FPR = cumsum(!labels) / sum(!labels))  # False Positive Rate
+
+library(ggplot2)
+roc %>%
+  ggplot() + aes(FPR, TPR) +
+  geom_point() +
+  labs(x = 'False Positive Rate (1 - Specificity)',
+       y = 'True Positive Rate (Sensitivity)',
+       title = 'Receiver operating characteristic curve') +
+  geom_abline(slope = 1, intercept = 0) +
+  theme_classic()
+```
+
+To estimate the area under the curve (AUC) we can just use the trapezium rule.
+(In fact we can be a bit lazy and not even do that, since the points are so close together.)
+The `diff()` function in R computes the differences between consecutive elements in a vector.
+If the function that describes the curve is \(y = f(x)\), then we want to compute
+\[\int_0^1 y~ dx \approx \sum_{i=1}^n y_i \cdot\Delta x_i,\]
+which can be achieved using the code:
+
+```{r auc}
+with(roc, sum(TPR[-1] * diff(FPR)))
+```
+
+similar to the estimate given by Stata.
+
+### Now recall the logistic regression model that used age as a categorical variable. Is this model adequate?
+
+Again, we won't use the Hosmer-Lemeshow test, but alternatives available in base R.
+
+```{r}
+anova(model4, test = 'Chisq')
+```
+
+Yes, the model appears adequate.
+
+### What is the area under the ROC curve for this model?
+
+```{r auc2, echo = FALSE}
+data.frame(scores = predict(model4), labels = model4$y) %>%
+  arrange(desc(scores)) %>%
+  mutate(TPR = cumsum(labels) / sum(labels),
+         FPR = cumsum(!labels) / sum(!labels),
+         dFPR = c(0, diff(FPR))) %>%
+  summarise(AUC = sum(TPR * dFPR)) %>% unlist()
+```
+
+### Create an age^2^ term and add this to the model with age as a continuous variable. Does adding this quadratic term improve the fit of the model?
+
+Obviously it will improve the fit, but whether it is worth the added complexity is another question.
+
+```{r quadratic}
+modelq <- update(model2, ~ . + I(age^2))
+epicourse$age2 <- epicourse$age^2
+summary(modelq)
+```
+
+Yes, the quadratic term appears to be significant.
+
+### Obtain the area under the ROC curve for this model. How does it compare for the previous models you considered?
+
+Using the same procedure as above, we obtain the AUC:
+
+```{r auc3, echo = FALSE}
+data.frame(scores = predict(modelq), labels = modelq$y) %>%
+  arrange(desc(scores)) %>%
+  mutate(TPR = cumsum(labels) / sum(labels),
+         FPR = cumsum(!labels) / sum(!labels),
+         dFPR = c(0, diff(FPR))) %>%
+  summarise(AUC = sum(TPR * dFPR)) %>% unlist()
+```
+
+which is similar to the AUC for the model where age is a categorical predictor.
+
+## Diagnostics
+
+### Produce a scatter plot of $\Delta\hat\beta_i$ against `fitted` values for the previous regression model. Is there any evidence of an influential point?
+
+Pregibon's \(\Delta\hat\beta_i\) statistic, according to the [Stata documentation](https://www.stata.com/manuals13/rlogisticpostestimation.pdf), has the formula
+\[\Delta\hat\beta_i = \frac{r_j^2 h_j}{(1 - h_j)^2},\]
+where \(r_j\) is the Pearson residual for the \(j^\text{th}\) observation and \(h_j\) is the \(j^\text{th}\) diagonal element of the hat matrix.
+
+It is not clear if there is an exact, named, equivalent in R, but we can try to compute it ourselves and then compare it with the other `influence.measures()` available.
+
+```{r pregibon}
+pregibon <- function(model) {
+  # This is very similar to Cook's distance
+  r <- residuals(model, type = 'pearson')
+  h <- hatvalues(model)
+  r^2 * h / (1 - h)^2
+}
+plot(fitted(modelq), pregibon(modelq), type = 'h')
+plot(modelq, which = 4)
+```
+
+### Obtain the deviance residuals and plot them against the fitted values. Is there evidence of a poor fit for any particular range of predicted values?
+
+Deviance residuals are accessible via `residuals(model, type = 'deviance')`.
+
+```{r deviance residuals}
+plot(fitted(modelq), residuals(modelq, type = 'deviance'),
+     xlab = 'Fitted values', ylab = 'Deviance residuals')
+```
+
+Again, this looks nothing like the plot in Mark's solutions. Is there something wrong?
+It could be that the Stata version groups observations by "covariate pattern" and computes the influence based on all the points from the same pattern being removed, rather than simply leave-one-out. However, this is not clear.
+
+### Plot fitted values against age. Why are there two curves?
+
+```{r fitted values vs age}
+plot(epicourse$age, fitted(modelq), xlab = 'age', ylab = 'Pr(hip pain)')
+```
+
+### Compare logistic regression model predictions to a non-parametric smoothed curve.
+
+You can use `loess()`, or `geom_smooth()` in ggplot2. If you are having trouble, try
+adjusting the smoothing parameter (`span`), and make sure the variables are in a
+numeric/binary format, as `loess()` doesn't really like factors.
+
+```{r nonparametric, warning = F}
+ggplot(epicourse) +
+  aes(age, as.numeric(hip_p) - 1) +
+  geom_point(aes(y = fitted(modelq))) +
+  geom_smooth(aes(colour = sex), method = 'loess', se = F, span = .75) +
+  ylab('Pr(hip pain)')
+
+nonpar <- loess(data = transform(epicourse,
+                                 pain = as.numeric(hip_p == 'yes'),
+                                 male = as.numeric(sex == 'M')),
+                pain ~ age * male, span = .75)
+plot(epicourse$age, fitted(modelq), xlab = 'Age', ylab = 'Pr(hip pain)')
+lines(1:100, predict(nonpar, newdata = data.frame(age = 1:100, male = T)), col = 'steelblue')
+lines(1:100, predict(nonpar, newdata = data.frame(age = 1:100, male = F)), col = 'tomato2')
+legend('topleft', lty = 1, col = c('steelblue', 'tomato2'), legend = c('M', 'F'))
+```
+
+The quadratic model appears to fit fairly well for men, but not for elderly women.
+
+## The CHD data
+
+This section of the practical gives you the opportunity to work through the CHD example that was used in the notes.
+
+```{r load chd, echo = -1}
+if (!file.exists('chd.csv')) {
+  chd <- foreign::read.dta('http://personalpages.manchester.ac.uk/staff/mark.lunt/stats/7_Binary/data/chd.dta')
+  write.csv(chd, 'chd.csv', row.names = FALSE)
+}
+chd <- read.csv('chd.csv')
+```
+
+The following commands will reproduce Figure 1.2 using base R:
+
+```{r reproduce figure}
+chd_means <- aggregate(cbind(age, chd) ~ agegrp, mean, data = chd)
+plot(chd ~ age, data = chd_means,
+     xlab = 'Mean age', ylab = 'Proportion of subjects with CHD',
+     main = 'Scatter plot of proportion of CHD against mean age')
+```
+
+It can also be done in dplyr and ggplot2:
+
+```{r reproduce figure ggplot2}
+chd %>%
+  group_by(agegrp) %>%
+  summarise(agemean = mean(age),
+            chdprop = mean(chd)) %>%
+  ggplot() + aes(agemean, chdprop) +
+  geom_point() +
+  labs(x = 'Mean age', y = 'Proportion of subjects with CHD',
+       main = 'Scatter plot of proportion of CHD against mean age')  
+```
+
+### Fit the basic logistic regression model with `chd ~ age`. What is the odds ratio for a 1 year increase in age?
+
+```{r basic logistic regression}
+chd_model <- glm(chd ~ age, data = chd, family = binomial)
+exp(coef(chd_model)['age'])
+```
+
+### Plot Pregibon's $\Delta\hat\beta_i$ against the fitted values for this model. Are any points particularly influential?
+
+```{r chd pregibon}
+plot(fitted(chd_model), pregibon(chd_model), type = 'h')
+plot(chd_model, which = 4)
+```
+
+
+

@@ -1,0 +1,235 @@
+---
+title: 'Wrangling data the right way with R'
+description: |
+  Tips on data manipulation with the packages data.table, dplyr and tidyr, including reshaping data, creating lagged variables and preparing data for survival analysis.
+author:
+  - name: Sian Bladon
+    url: https://www.research.manchester.ac.uk/portal/sian.bladon.html
+    affiliation: Centre for Health Informatics
+    affiliation_url: https://www.herc.ac.uk/
+    orcid_id: 0000-0001-9087-6505
+  - name: James Gwinnutt
+    url: https://www.research.manchester.ac.uk/portal/james.gwinnutt.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0002-1435-8797
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-02-26
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = TRUE, dev.args = list(type = 'cairo'))
+
+library(kableExtra)
+# define a method for objects of the class data.frame
+knit_print.data.frame = function(x, ...) {
+  head(x, 10) %>%
+    kable('html', row.names = FALSE) %>%
+    kable_styling() %>%
+    c('', '', ., '') %>%
+    paste(collapse = '\n') %>%
+    asis_output
+}
+# register the method
+registerS3method("knit_print", "data.frame", knit_print.data.frame)
+registerS3method("knit_print", "grouped_df", knit_print.data.frame)
+options(digits = 2, knitr.kable.NA = '')
+```
+
+## Reshaping data (reshape, pivot, melt, cast)
+
+_By Sian Bladon and James Gwinnutt_
+
+See the [R solutions for Lecture 11](https://personalpages.manchester.ac.uk/staff/david.selby/stata/2021-02-02-refinements/#reshaping-data) of the _Statistical Modelling with Stata_ course.
+
+- [James's slides](Reshaping data using R - J Gwinnutt.pptx) <i class="fas fa-file-powerpoint" title=".pptx"></i>
+- [Sian's example script](r_thritis_feb2021.html) <i class="fab fa-r-project" title=".R"></i>
+- [tidyr vignette on pivoting](https://tidyr.tidyverse.org/articles/pivot.html)
+
+## Lagged variables
+
+_By Sian Bladon and David Selby_
+
+- [Sian's example script](r_thritis_feb2021.html) <i class="fab fa-r-project" title=".R"></i>
+- [dplyr articles](https://dplyr.tidyverse.org/articles/index.html)
+
+To create lag (or lead) variables in R is very easy, and the syntax can be similar to Stata or different, depending on which package you choose to use.
+Consider the following data frame called `observations`.
+
+```{r, echo = FALSE}
+observations <- expand.grid(time = 1:4, patient = 1:2)
+observations$value <- rnorm(nrow(observations), 50, 10)
+observations
+```
+### `lead`, `lag` and `shift` functions
+
+The easiest way is to use the `lead()` and `lag()` functions built into the package **dplyr**.
+
+```{r}
+library(dplyr)
+observations %>%
+  group_by(patient) %>%
+  mutate(lag1 = lag(value, n = 1))
+observations %>%
+  group_by(patient) %>%
+  mutate(lead1 = lead(value, n = 1))
+```
+Or if you prefer the package **data.table**'s syntax, the function is `shift()`:
+
+```{r}
+library(data.table)
+setDT(observations)
+observations[, .(lag2 = shift(value, 2, type = 'lag')), by = patient]
+```
+
+For quick analyses (without grouping variables) you can also do it yourself using `head(x, -1)`, `tail(x, -1)` or basic subsetting using syntax `x[-1]` and `x[-length(x)]`, but you're less likely to make a mistake by using the dedicated functions.
+
+### Gaps between records
+
+If you have gaps in your records and you only want to lag successive years (for example), you can use a conditional (e.g. `ifelse`) expression.
+Consider the dataset `gap_obs`:
+
+```{r, echo = FALSE}
+(gap_obs <- data.frame(time = c(1, 2, 3, 5, 6, 8), value = rnorm(6, 50, 10)))
+```
+
+Consecutive records are those whose time points have lag-1 differences of 1 time unit.
+
+```{r}
+gap_obs %>%
+  mutate(lag1 = ifelse(time - lag(time) == 1, lag(value), NA))
+```
+
+You can also calculated lagged differences with the `diff` function, but the result will be of length 1 shorter than your input vector, so you need to prepend an `NA`.
+
+### Last observation carried forward
+
+If data are missing (`NA`) and you want to fill it in with the _last observation carried forward_ (LOCF) you can use the `nafill` from the **data.table** package.
+Change the `type` argument to change between last observation carried forward, _next observation carried backward_, or to fill in `NA`s with a specified constant value.
+
+```{r}
+x <- c(10, 20, 25, NA, 30, 10)
+nafill(x, type = 'locf')
+nafill(x, type = 'nocb')
+nafill(x, type = 'const', fill = 0)
+```
+
+The **zoo** package (Z's Ordered Observations) provides a similar function called `na.locf()`.
+
+```{r}
+library(zoo)
+na.locf(x)
+na.locf(x, fromLast = TRUE) # next obs carried backward
+```
+
+Equivalently, you can turn _implicit_ missing values to _explicit_ ones and then use a conditional expression.
+(Be aware this may not be very efficient if your records have lots of gaps.)
+
+```{r}
+library(tidyr)
+gap_obs %>%
+  # Add explicit NAs for the missing time points
+  tidyr::complete(time = seq(min(time), max(time), by = 1)) %>%
+  # Last obs carried forward for missing values, using lag
+  mutate(value2 = ifelse(is.na(value), lag(value), value),
+         value3 = zoo::na.locf(value)) # same result
+```
+
+### Rolling averages
+
+- [How to calculate a rolling average in R](https://www.storybench.org/how-to-calculate-a-rolling-average-in-r/)
+- [Using `rollmean` when there are missing values](https://stackoverflow.com/questions/17765001/using-rollmean-when-there-are-missing-values-na)
+
+## Survival analysis
+
+*By David Selby*
+
+This example uses the dataset [`leukaemia.csv`](https://personalpages.manchester.ac.uk/staff/david.selby/stata/2021-02-01-survival/leukaemia.csv) (right-click to download) from lecture 10 of the [_Statistical Modelling with Stata_ course](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r eval = FALSE}
+leukaemia <- read.csv('leukaemia.csv')
+```
+
+```{r echo = FALSE}
+leukaemia <- read.csv('https://personalpages.manchester.ac.uk/staff/david.selby/stata/2021-02-01-survival/leukaemia.csv') %>%
+  transform(treatment2 = relevel(as.factor(treatment2), 'Standard'),
+            wbc3cat = factor(wbc3cat, levels = c('Normal', 'Moderate', 'High')))
+leukaemia %>%
+  kable('html') %>%
+  kable_styling
+```
+
+Suppose we want to fit a Cox proportional hazards model to these data to model the effect of `treatment2`.
+The Kaplan--Meier survival curves look like this:
+
+```{r kaplan-meier, fig.cap = 'Kaplan-Meier survival curve comparing relapse in leukaemia patients on \'Drug B\' versus standard treatment'}
+library(survival)
+leuk_km <- survfit(Surv(weeks, relapse) ~ treatment2, data = leukaemia)
+
+library(survminer)
+ggsurvplot(leuk_km)
+```
+
+In the first 10 weeks, survival on standard treatment appears to be better than Drug B, but after 10 weeks, the reverse appears to be true.
+
+A Kaplan--Meier plot with crossing survival curves suggests that a proportional hazards assumption may not be reasonable.
+You can also verify this by checking whether the Schoenfeld residuals for a Cox model (while accounting for white blood cell count) appear constant over time:
+
+```{r schoenfeld1, fig.width = 7, fig.height = 5, fig.cap = 'Schoenfeld residuals for a Cox proportional hazards model of leukaemia relapse time against white blood cell count and treatment'}
+leuk_cox1 <- coxph(Surv(weeks, relapse) ~ treatment2 + wbc3cat, data = leukaemia)
+plot(cox.zph(leuk_cox1)[1])
+```
+*Note: due to [a bug](https://github.com/kassambara/survminer/issues/444) in survminer, its function `ggcoxzph` (for plotting Schoenfeld residuals) draws the confidence bands incorrectly. Instead, use the base plotting function (as above), set `ggcoxzph(..., se = FALSE)`, or check [GitHub](https://github.com/kassambara/survminer/issues/444) to see when the issue will be fixed.*
+
+Let's split the dataset at 10 weeks, to compare the different effects of Drug B before and after this cutpoint.
+
+```{r, echo = 1}
+leuk_split <- survSplit(Surv(weeks, relapse) ~ treatment2 + wbc3cat,
+                        data = leukaemia, cut = 10, episode = 'time_group')
+leuk_split %>%
+  kable('html') %>%
+  kable_styling
+```
+Now fit the model to compare the effect of Drug B before and after 10 weeks.
+
+```{r schoenfeld2}
+leuk_cox2 <-
+  coxph(Surv(tstart, weeks, relapse) ~ wbc3cat + treatment2 * strata(time_group),
+        data = leuk_split)
+
+plot(cox.zph(leuk_cox2)[2])
+```
+
+Is the hazard ratio for the effect of Drug B _before_ 10 weeks significant?
+What about after 10 weeks?
+
+```{r, eval = FALSE}
+cbind(hazard = coef(leuk_cox2), confint(leuk_cox2)) %>%
+  exp
+```
+
+```{r, echo = FALSE}
+options(digits = 2)
+cbind(hazard = coef(leuk_cox2),
+      confint(leuk_cox2)) %>%
+  exp %>%
+  data.frame(coefficient = c('Moderate WBC', 'High WBC', 'Drug B < 10 wks', 'Drug B >= 10 wks'), .) %>%
+  kable('html',
+        row.names = FALSE,
+        col.names = c('', 'hazard', '2.5%', '97.5%')) %>%
+  kable_styling() %>%
+  row_spec(3, bold = TRUE)
+```
+
+See the [R solutions for Lecture 10](https://personalpages.manchester.ac.uk/staff/david.selby/stata/2021-02-01-survival/#non-proportional-hazards) of the _Statistical Modelling with Stata_ course for more information.
+
+Another useful function for wrangling survival data is [`tmerge()`](https://rdrr.io/cran/survival/man/tmerge.html) (for combining time-dependent variables with baseline data).

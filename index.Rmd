@@ -1,0 +1,26 @@
+---
+title: "David Selby"
+description: |
+  Research associate in data science at the University of Manchester
+site: distill::distill_website
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+# Learn more about creating websites with Distill at:
+# https://rstudio.github.io/distill/website.html
+
+```
+
+```{r, out.width='50%', out.extra='style="border-radius:500px;"'}
+knitr::include_graphics('https://www.research.manchester.ac.uk/portal/files/162434673/manchester_portrait.jpg')
+```
+
+This is the personal page of **David Selby** at the University of Manchester.
+
+- Visit my non-academic web site at <https://selbydavid.com>.
+- Find a list of past talks on my [Warwick PhD page](https://warwick.ac.uk/fac/sci/statistics/staff/research_students/selby).
+- View resources for [**R-thritis**](rthritis.html), the statistical computing group at the Centre for Epidemiology Versus Arthritis.
+- See my [R translation](stata.html) of the **Statistical Modelling in Stata** course.
+- Contact me directly via david.selby@manchester.ac.uk

@@ -1,0 +1,522 @@
+---
+title: "Lecture 11: Refinements of the Stata Language"
+description: |
+  Graphics. Summarising data. More syntax. Looping. Reshaping data.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-02-02
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+    toc_depth: 2
+preview: refinements_files/figure-html5/ggplot-facet-le-1.png
+---
+
+This worksheet is based on the eleventh lecture of the [**Statistical Modelling in Stata**](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html) course, created by Dr Mark Lunt and offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
+The original Stata exercises and solutions are here translated into their R equivalents.
+
+Refer to the original slides and Stata worksheets [here](https://personalpages.manchester.ac.uk/staff/mark.lunt/stats_course.html).
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(global.par = TRUE)
+par(mar = c(3, 4, 2, 2) + .1) # adjust base plot margins
+```
+
+## Graphs
+
+Load the dataset `uselifeexp` from the Stata web site.
+It concerns life expectancy in various subgroups in the United States from 1900--2000.
+
+```{r}
+uslifeexp <- foreign::read.dta('https://www.stata-press.com/data/r8/uslifeexp.dta')
+```
+
+Similar datasets are available within R, but we load the Stata one for ease of comparison with the original worksheet.
+
+### Base R graphics
+
+Produce a simple scatter plot of life expectancy against year.
+
+```{r uslifeexp-scatter}
+plot(le ~ year, data = uslifeexp) # or plot(uslifeexp$year, uslifeexp$le)
+```
+
+You should see life expectancy increasing steadily, with a blip of very low life expectancy in 1918.
+Now we will add a title to this graph.
+Go back to your script and add a `main` argument to the `plot` command.
+We can also change the *y*-axis label, `ylab`.
+
+```{r uslifeexp-title}
+plot(le ~ year, data = uslifeexp,
+     ylab = 'life expectancy',
+     main = 'US Life Expectancy')
+```
+
+Now we are going to extend the y-axis back to 0, rather than starting at 40.
+This is set by passing a vector of length 2 to the `ylim` argument.
+
+```{r uslifeexp-ylim}
+plot(le ~ year, data = uslifeexp,
+     ylab = 'life expectancy',
+     main = 'US Life Expectancy',
+     ylim = c(0, 80))
+```
+
+Now we will practise overlaying graphs, using the same dataset.
+We can compare male and female life expectancy.
+First plot the points for male life expectancy, then add the female points to the same plot using the `points` function.
+Set the plotting characters to different symbols and colours using `pch` and `col` arguments.
+Use the following guide:
+
+- [Quick-R: Graphical Parameters](https://www.statmethods.net/advgraphs/parameters.html)
+
+```{r uslifeexp-sex}
+plot(le_male ~ year, data = uslifeexp,
+     ylab = 'life expectancy',
+     main = 'US Life Expectancy',
+     ylim = c(0, 80),
+     pch = 16, col = 'steelblue')
+points(le_female ~ year, data = uslifeexp,
+       pch = 16, col = 'tomato')
+```
+Add a legend, if you like.
+
+```{r uslifeexp-legend, echo = -(1:2)}
+plot(le_male ~ year, data = uslifeexp,
+     ylab = 'life expectancy',
+     main = 'US Life Expectancy',
+     ylim = c(0, 80),
+     pch = 16, col = 'steelblue')
+points(le_female ~ year, data = uslifeexp, pch = 16, col = 'tomato')
+legend('bottomright', c('Male', 'Female'), pch = 16,
+       col = c('steelblue', 'tomato')) 
+```
+You should see that life-expectancy is increasing over time in both sexes, but consistently higher in females.
+Add regression lines to the plot, after fitting the appropriate linear models, using the `abline()` function.
+You may wish to adjust your `ylim`.
+
+```{r uslifeexp-abline, echo = -(3:5)}
+model_m <- lm(le_female ~ year, data = uslifeexp)
+model_f <- lm(le_male ~ year, data = uslifeexp)
+
+plot(le_male ~ year, data = uslifeexp,
+     ylab = 'life expectancy',
+     main = 'US Life Expectancy',
+     ylim = c(35, 85),
+     pch = 16, col = 'steelblue')
+points(le_female ~ year, data = uslifeexp, pch = 16, col = 'tomato')
+legend('bottomright', c('Male', 'Female'), pch = 16, lty = 1,
+       col = c('steelblue', 'tomato'))
+
+abline(model_m, col = 'steelblue')
+abline(model_f, col = 'tomato')
+```
+
+You *can* add confidence intervals to the plot in the same way, but it's a bit of a pain.
+
+### ggplot2
+
+A better option is **ggplot2**, which fits models, adds legends and shades the confidence intervals automatically.
+However, the package demands data in a long format, so that we can treat sex as a factor, rather than as two separate variables.
+Reshaping data will be explained later, but here's a preview.
+
+```{r uslifeexp-ggplot}
+library(tidyverse)
+uslifeexp %>%
+  select(year, le_female, le_male) %>%
+  pivot_longer(le_female:le_male,
+               names_to = 'sex',
+               values_to = 'lifeexp') %>%
+  mutate(sex = str_remove(sex, 'le_')) %>% # clean up the labels
+  ggplot() + aes(year, lifeexp, colour = sex) +
+  geom_smooth(method = lm, formula = y ~ x) +
+  geom_point() +
+  labs(y = 'life expectancy', title = 'US Life Expectancy') +
+  theme_classic() # Just because I don't like the default grey theme
+```
+
+## Summarising data
+
+Read the `cancer` dataset into R.
+
+```{r}
+cancer <- foreign::read.dta('http://www.stata-press.com/data/r9/cancer.dta')
+```
+
+Find out what the dataset is about with `str`.
+
+```{r}
+str(cancer)
+```
+
+(These `attr`ibutes are carried over from Stata.)
+
+### How many observations are there in the dataset?
+
+```{r}
+nrow(cancer)
+```
+
+### Use the `summary()` function to get some idea of the values taken by the different variables. What was the longest followup time?
+
+```{r}
+summary(cancer)
+```
+
+See summary output above, or use
+
+```{r}
+max(cancer$studytime)
+```
+
+### How many different treatments were in the study?
+
+When first imported via `read.dta` this becomes an integer vector, so the summary above for `drug` might not make much sense.
+If you don't want to convert this variable to a factor, then you can use
+
+```{r}
+unique(cancer$drug)
+```
+
+otherwise, convert to factor and summarise again.
+
+```{r}
+cancer <- transform(cancer, died = as.factor(died), drug = as.factor(drug))
+summary(cancer)
+```
+
+You can also now use
+
+```{r}
+nlevels(cancer$drug)
+```
+
+### How old were the oldest and youngest subjects in the study?
+
+See summary output above, or use
+
+```{r}
+range(cancer$age)
+```
+
+### What was the mean age at the start of the study?
+
+See summary output above, or use
+
+```{r}
+mean(cancer$age)
+```
+
+### What was the standard deviation of the followup time?
+
+We don't get standard deviations in summary output, so use:
+
+```{r}
+sd(cancer$studytime)
+```
+
+### Use `table` (or `xtabs`) to cross-tabulate the number and percentage of subjects who died on each treatment. How many subjects on placebo died?
+
+```{r}
+with(cancer, table(drug, died))
+```
+19 subjects died on placebo (= drug 1).
+
+### What percentage of subjects on treatment 2 died?
+
+```{r}
+with(cancer, proportions(table(drug, died), margin = 1))
+```
+
+43% of subjects on treatment 2 died.
+
+## Further syntax
+
+### What is the mean age of subjects in the cancer study who died?
+
+```{r}
+with(cancer, mean(age[died == 1]))
+```
+
+Other methods include
+
+```{r}
+aggregate(age ~ died, mean, data = cancer)
+by(cancer$age, cancer$died, mean)
+cancer %>% filter(died == 1) %>% summarise(mean = mean(age))
+cancer %>% group_by(died) %>% summarise(mean = mean(age))
+```
+
+### Find the mean followup time among subjects on placebo.
+
+Many different ways of doing it, as above.
+
+```{r}
+mean(cancer$studytime[cancer$drug == 1]) # or use with()
+aggregate(studytime ~ drug, mean, data = cancer)
+by(cancer$studytime, cancer$drug, mean)
+cancer %>% group_by(drug) %>% summarise(mean = mean(studytime))
+```
+### What was the mean age among subjects who died after being treated on placebo?
+
+```{r}
+with(cancer, mean(age[died == 1 & drug == 1]))
+aggregate(age ~ died + drug, mean, data = cancer)
+with(cancer, by(age, list(died = died, drug = drug), mean))
+cancer %>% filter(died == 1, drug == 1) %>% summarise(mean = mean(age))
+cancer %>% group_by(died, drug) %>% summarise(mean = mean(age))
+```
+
+### Create a variable called `agegrp`, dividing subjects into two more-or-less equally sized groups.
+
+You can try using `cut(age, 2)` but this will split the data at 57 into equal *lengths of years*, rather than numbers of subjects.
+
+You need to specify the median manually, and then either set lower and upper bounds (`c(min(age), median(age), max(age))` or equivalently `quantile(age, c(0, .5, 1))`).
+
+Or use `findInterval`, which lets you specify a single breakpoint (but doesn't label the result).
+
+```{r}
+# Generates a vector of 0s and 1s:
+cancer$agegrp <- findInterval(cancer$age, median(cancer$age))
+# Slightly better as you get labels:
+cancer$agegrp <- cut(cancer$age,
+                     quantile(cancer$age, c(0, .5, 1)),
+                     include.lowest = TRUE)
+```
+
+If you prefer a specific pre-made function, use `cut2` from the **Hmisc** package, which will cut into the number of quantile groups specified by argument `g`.
+
+```{r}
+cancer$agegrp <- Hmisc::cut2(cancer$age, g = 2)
+```
+
+### Create a new variable containing the number of subjects in each age-group.
+
+Lots of ways of doing this.
+
+```{r}
+# Using factor `agegrp` to index table() output
+cancer <- transform(cancer, group_size = table(agegrp)[agegrp])
+# Using ave()
+cancer <- transform(cancer, group_size = ave(age, agegrp, FUN = length))
+# Using dplyr
+cancer <- dplyr::add_count(cancer, agegrp, name = 'group_size')
+```
+
+Or in **data.table**:
+
+```{r, eval = FALSE}
+library(data.table)
+setDT(cancer)
+cancer[, group_size := .N, by = agegrp]
+```
+
+All give the same result.
+
+Assign the dataset to the symbol `mycancer`, for later exercises.
+
+```{r}
+mycancer <- cancer
+```
+
+## Looping
+
+*Warning.*
+You will **rarely** need to use loops of any kind in R.
+Nearly all tasks are better accomplished by using vectorised operations or using an apply (or map) type function.
+Exceptions to this are iterative processes that are performed for their side effects, such as saving to file, producing plots or printing to the console.
+(However, even these might be accomplished with functional programming verbs like `purrr::walk`.)
+Nevertheless, here's a direct R transliteration of the Stata worksheet.
+
+For a simple illustration of looping, type
+
+```{r}
+for (x in c('one', 'two', 'three'))
+  print(x)
+```
+
+*Note.*
+You don't need to wrap the loop expression in curly brackets `{}` unless it spans multiple lines.
+Here it's just a single `print` operation, so they are omitted.
+
+You should still have the dataset `mycancer` from the last section.
+You can now enter the following code:
+
+```{r}
+for (x in c('drug', 'agegrp')) {
+  print(table(cancer$died, cancer[[x]]))
+}
+```
+This should produce two cross-tabulations, one for `drug` against `died`, and the other for `agegrp` against `died`.
+
+*Note.* Expressions inside loops need an explicit call to `print()` to appear in the console.
+
+For a more complex example of using `for()`, load the life-expectancy data (`uslifeexp`) from earlier.
+We will create graphs for all of the variables:
+
+```{r loop-plot, out.width = '33%'}
+for (x in grep('^le', colnames(uslifeexp), value = TRUE)) {
+  plot(uslifeexp$year, uslifeexp[[x]], ylab = x, main = x)
+}
+```
+
+In interactive use, you can subset a data frame using `df$myvar`, but if you want to select a column by a string then you need `df[[x]]`, which will give the same result as if you'd typed the value of x after the dollar sign.
+This is so you don't mix up a column whose name is equal to the value of `x` with a column whose name is literally "x".
+
+If you really did want to produce a set of plots like above, you might be better off using **lattice** or **ggplot2** to produce a set of small multiples (facets); this is demonstrated at the bottom of the page.
+A prerequisite is reshaping the data from wide to long, which is described in the next section.
+
+## Reshaping data
+
+There are several ways to reshape data in R.
+
+- **reshape**: built into R, though isn't so easy to use (in fact, it's infuriatingly unintuitive!)
+- Package **reshape2**: designed to replace the base command with a better interface, via `melt` and `cast` functions (also built into **data.table**)
+- Package **tidyr**: part of the **tidyverse** family, provides `pivot_longer` and `pivot_wider` functions (formerly known as `gather` and `spread`)
+
+The main differences between these three approaches are that `reshape` tries to do everything in a single function, **reshape2** uses a set of functions to coerce the data to and from an intermediate (molten) format, and **tidyr** has a pair of functions that convert between wide and long directly.
+
+Generally speaking, you want to use either **reshape2** or **tidyr**, and if in doubt then start with **tidyr** and see how you get on.
+
+### Long to wide
+
+Read the `bplong` dataset into R with
+
+```{r}
+bplong <- foreign::read.dta('https://www.stata-press.com/data/r8/bplong.dta')
+```
+
+Use an appropriate method to get the mean and standard deviation of the blood pressure for categories `when = 'Before'` and `when = 'After'`, separately.
+Make a note of these so you can check later that your reshaping was successful.
+
+```{r}
+bplong %>% group_by(when) %>% summarise(mean = mean(bp), sd = sd(bp))
+```
+
+To reshape these data into wide form, the unique identifier is `patient` and the variable to 'widen' is `when`.
+
+First let's see reshape:
+
+```{r, echo = 1}
+bpwide <- reshape(bplong,
+                  v.names = 'bp',
+                  timevar = 'when',
+                  idvar = 'patient',
+                  direction = 'wide')
+head(bpwide)
+```
+
+With **reshape2**, you can `melt` an object into a 'molten' long-format data frame, then `cast` it back into the desired wider format.
+
+```{r, echo = 1:3}
+library(reshape2)
+molten <- melt(bplong, measure.vars = 'bp')
+bpwide <- dcast(molten, patient + sex + agegrp ~ when)
+head(bpwide)
+```
+
+And finally the package **tidyr** provides `pivot_wider`, which performs the reshape operation in a single function call (the dual function is `pivot_longer`) without having to melt it first.
+
+```{r echo = 1:2}
+library(tidyr)
+bpwide <- bplong %>% pivot_wider(names_from = 'when', values_from = 'bp')
+head(bpwide)
+```
+
+Check the summary statistics have not changed.
+
+```{r, echo = -1}
+options(digits = 3)
+bpwide %>%
+  summarise_at(vars(Before:After),
+               list(mean = mean, sd = sd))
+```
+
+### Wide to long
+
+Reshaping from wide to long is especially useful for packages like **ggplot2**, as it allows you to colour or facet according to different variables.
+It's also handy when summarising lots of variables at once.
+
+Reload the `uslifeexp` life expectancy data from earlier.
+
+There are a series of variables giving the life-expectancy in different subgroups of the US population over the years, and a variable `le` containing the overall life-expectancy.
+We will change this to have several observations for each year, a single variable `le` containing the life expectancy and a `variable` group saying which subgroup the life-expectancy applies to.
+First, we need to change the name of the variable `le` to `le_total`, so that there is something to put in the `group` variable for the overall life expectancy.
+
+```{r}
+colnames(uslifeexp)[2] <- 'le_total'
+```
+
+Now, unique observations are identified by the variable `year`, the variable we want to have in the long data is `le`, and the variable we want to identify which variable in wide form corresponds to an observation in long form is called `group`.
+
+The different ways of achieving this are as follows.
+Firstly, for the masochists, `reshape`.
+
+```{r, echo = 1}
+life_long <-
+  reshape(uslifeexp,
+          varying = list(colnames(uslifeexp)[-1]), # everything except 'year'
+          v.names = 'le',
+          timevar = 'group',
+          idvar = 'year',
+          times = colnames(uslifeexp)[-1],
+          direction = 'long')
+head(life_long)
+```
+
+Next a **reshape2** workflow.
+It's a single `melt` operation; no need to `cast` afterwards because a long format is what we want.
+
+```{r, echo = 1}
+life_long <- melt(uslifeexp,
+                  id.vars = 'year',
+                  variable.name = 'group',
+                  value.name = 'le')
+head(life_long)
+```
+
+And the equivalent syntax using **tidyr**.
+Here we use the selector syntax "`-year`" to mean 'pivot all of the columns except this one'.
+You could also use `starts_with('le')` to select the columns by name.
+
+```{r, echo = 1}
+life_long <- uslifeexp %>%
+  pivot_longer(-year, names_to = 'group', values_to = 'le')
+head(life_long)
+```
+
+Hence you can recreate the scatter plot from earlier.
+
+```{r long-plot}
+life_long %>%
+  filter(group %in% c('le_male', 'le_female')) %>%
+  mutate(group = str_remove(group, '^le_')) %>% # remove prefix
+  ggplot() + aes(year, le, colour = group) +
+  geom_smooth(method = lm) +
+  geom_point() +
+  labs(colour = 'sex', y = 'life expectancy',
+       title = 'US Life Expectancy')
+```
+
+Better yet, let's plot _all_ of the variables at once.
+No loops necessary!
+
+```{r ggplot-facet-le, fig.width = 6, fig.height = 6}
+ggplot(life_long) +
+  aes(year, le) +
+  geom_point() +
+  facet_wrap( ~ group)
+```
+Other packages are available, of course.
+Another option for small-multiples plots is **lattice**.
+
+```{r lattice, fig.width = 6, fig.height = 6}
+library(lattice)
+xyplot(le ~ year | group, life_long, layout = c(3, 3))
+```

@@ -1,0 +1,37 @@
+name: "personal_uom"
+title: "David Selby"
+description: |
+  David Selby is a research associate in data science at the Centre for
+  Epidemiology Versus Arthritis (CfE), University of Manchester, UK.
+output_dir: "public_html"
+exclude: ['*.csv', '*.dta', '*.zip']
+navbar:
+  right:
+    # - text: "Home"
+    #   href: index.html
+    # - text: "About"
+    #   href: about.html
+    - text: "Rthritis Group"
+      href: rthritis.html
+    - text: "Stata Course"
+      href: stata.html
+    - text: "Analytical Epidemiology"
+      href: analysis.html
+    - icon: fab fa-github
+      href: https://github.com/Selbosh
+    - icon: fab fa-twitter
+      href: https://twitter.com/TeaStats
+    - image: https://selbydavid.com/favicon.ico
+      href: https://selbydavid.com
+output: distill::distill_article
+collections:
+  rthritis:
+    citations: false
+    categories: false
+  stata:
+    citations: false
+    categories: false
+base_url: https://personalpages.manchester.ac.uk/staff/david.selby/
+twitter:
+  site: '@CfEUoM'
+  creator: '@TeaStats'
