@@ -28,6 +28,12 @@ This guide introduces the concept of version control using only GUI tools, namel
 RStudio and the GitHub web interface.
 If you'd prefer to learn command line syntax, there are many other resources available on the web from [GitHub](https://guides.github.com/introduction/git-handbook/), [Atlassian](https://www.atlassian.com/git/tutorials) and others.
 
+```{r echo=FALSE}
+knitr::include_url('collabvc.html')
+```
+
+- [Talk slides](collabvc.html)
+
 ## Using GitHub
 
 ### Create a GitHub repository
