@@ -1,0 +1,179 @@
+---
+title: Collaboration, version control & learning to commit
+subtitle: R-thritis Group
+author: David Selby
+date: '12^th^ March 2021'
+output:
+  xaringan::moon_reader:
+    df_print: kable
+    md_extensions: +definition_lists
+css: rth.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+&nbsp;
+
+![Final version](https://pbs.twimg.com/media/Ev_ohgnWEAQz5e6?format=jpg)
+
+---
+
+class: center
+
+```{r out.width='60%'}
+knitr::include_graphics('http://www.phdcomics.com/comics/archive/phd101212s.gif')
+```
+
+---
+
+## Motivation .small[— why git & GitHub?]
+
+> "Version control is the **only reasonable way** to keep track of changes in code, manuscripts, presentations, and data analysis projects...
+>
+> "GitHub **lowers the barriers to collaboration**."
+>
+> .right[[Karl Broman](https://kbroman.org/github_tutorial/pages/why.html)]
+
+
+
+---
+
+### Local version control
+
+- Keep many local copies of files in a folder
+  - e.g. [RCS](https://en.wikipedia.org/wiki/Revision_Control_System "Revision Control System"), Windows File History
+
+### Centralised version control
+
+- Check out snapshots of files from single server
+  - e.g. [CVS](https://en.wikipedia.org/wiki/Concurrent_Versions_System "Concurrent Versions System"), Office 365, Dropbox, _Isilon_
+
+### Distributed version control
+
+- Mirror the entire repository, including full history
+  - e.g. Git, Mercurial
+
+---
+
+## Local _vs._ centralised VCS
+
+.pull-left[
+![Local VCS](https://git-scm.com/book/en/v2/images/local.png)
+]
+.pull-right[
+![Centralised VCS](https://git-scm.com/book/en/v2/images/centralized.png)
+]
+
+&nbsp;
+
+.footnote[Source: [_Pro Git_ (2014)](https://git-scm.com/book/en/v2)]
+
+---
+
+## Centralised _vs._ distributed VCS
+  
+.pull-left[
+![Centralised VCS](https://git-scm.com/book/en/v2/images/centralized.png)
+]
+.pull-right[
+![Distributed VCS](https://git-scm.com/book/en/v2/images/distributed.png)
+]
+
+.footnote[Source: [_Pro Git_ (2014)](https://git-scm.com/book/en/v2)]
+
+---
+
+class: fullpage
+
+## Git and GitHub
+
+**Git &ne; GitHub** <small>(just as R &ne; RStudio)</small>.  
+GitHub is a _hosting provider_ for your files, via Git software.
+
+Others are available:
+
+- [Bitbucket](https://bitbucket.org/)
+- [Gitlab](https://about.gitlab.com/)
+- [AWS CodeCommit](https://aws.amazon.com/codecommit/)
+- [Google Cloud Source Repositories](https://cloud.google.com/source-repositories/)
+
+GitHub provides extra features on top of Git:
+
+- [issue tracking](https://guides.github.com/features/issues/), documentation, wikis
+- [GitHub Pages](https://pages.github.com/)
+- [GitHub Actions](https://github.com/features/actions)
+
+---
+
+class: inverse, fullpage
+
+## Git command line operations
+
+- `git init` / `clone`
+  - start a new repository (or copy an existing one)
+- `git add` / `rm`
+  - add/remove a file to version control
+- `git diff` / `status`
+  - see what's changed
+- `git commit`
+  - save changes to history
+- `git branch` / `merge`
+  - start new branch / merge one into another
+- `git push`
+  - upload changes to the remote repository
+- `git pull`
+  - download changes from remote repository
+
+---
+
+class: fullpage, inverse
+
+## GitHub operations
+
+1. Create or **fork** a repository
+2. **Add** files
+3. **Commit** changes
+4. Compare **diff** versions
+5. Make and accept **pull requests**.
+
+## RStudio operations
+
+1. **Init**/**Clone** a repository as an RStudio Project
+2. **Pull** changes from remote
+3. **Add** files locally
+4. **Commit** changes
+5. **Push** to remote
+
+---
+
+class: center, inverse
+
+# .big[Demonstration]
+
+---
+
+## Further reading
+
+1. [**Practical Worksheet**](https://personalpages.manchester.ac.uk/staff/david.selby/rthritis/2021-03-12-git/)
+
+1. [Version control for scientific research](https://blogs.biomedcentral.com/bmcblog/2013/02/28/version-control-for-scientific-research/) .small[(Hrynaszkiewicz, 2013)]
+
+1. [Version control with RStudio](https://support.rstudio.com/hc/en-us/articles/200532077-Version-Control-with-Git-and-SVN) .small[(Stephens, 2021)]
+
+1. [Happy Git and GitHub for the useR](https://happygitwithr.com/) .small[(Bryan _et al._, 2016)]
+
+1. [Minimal git/github tutorial guide](https://kbroman.org/github_tutorial/) .small[(Broman, 2013)]
+
+---
+
+## Next **Rthritis** meeting
+
+.secondary[.BIG[Statistical modelling with Stan]]
+
+Friday 26.sup[th] March @ 11:00  
+Belay Birlie Yimer
+
+.footnote[Contact <david.selby@manchester.ac.uk> to suggest topics/speakers]
+
