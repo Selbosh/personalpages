@@ -1,5 +1,5 @@
 ---
-title: "Collaboration, Outreach and Learning to Commit"
+title: "Collaboration, version control and learning to commit"
 description: |
   Step by step guide on using GitHub and RStudio for collaborative analysis.
 author:
