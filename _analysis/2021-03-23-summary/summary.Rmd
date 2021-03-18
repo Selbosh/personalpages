@@ -12,11 +12,37 @@ date: 2021-03-23
 output:
   distill::distill_article:
     self_contained: false
+    toc: true
+references:
+  - id: Tufte2001
+    title: The Visual Display of Quantitative Information
+    author:
+      - family: Tufte
+        given: Edward
+    type: book
+    issued:
+      year: 2001
+    publisher: Graphics Press USA
+    edition: 2nd
+citations: no
 ---
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE, dev.args = list(type = 'cairo'))
+```
+
+```{css, echo=FALSE}
+ul li {
+  margin-left: 1em;
+}
+ul ul {
+  padding-left: 2em;
+  font-size: smaller;
+}
+ul ul li {
+  margin-bottom: 0;
+}
 ```
 
 This lecture forms part of the Introduction to Epidemiology course offered by the [Centre for Epidemiology Versus Arthritis](https://www.cfe.manchester.ac.uk/) at the University of Manchester.
@@ -30,14 +56,819 @@ Download it from the [Comprehensive R Archive Network](https://cran.r-project.or
 
 If you have questions or comments about any of these materials, please contact david.selby@manchester.ac.uk.
 
+Download the main lecture slides:
+
+- Slides link (coming soon) <i class="fa fa-file-pdf" title="PDF"></i>
+
+Links to example datasets are provided in the respective sections below.
+
 ## Introduction
 
+Descriptive statistics and graphical summaries are essential for two tasks that bookend any quantitative research project.
 
+1. exploratory data analysis, so you understand your data, its distribution and any problems that could limit an analysis (such as implausible or missing values, suboptimal coverage of the population of interest or imprecise measurement);
+2. succinctly describing the research data to others, especially for defending a statistical argument in a publication, but also for communicating to would-be collaborators.
+
+Exploring and presenting data both involve similar tools.
+
+Remember: **visualise early and often**.
+Before you can communicate your research, you first need to understand the data yourself.
+Visualising data very quickly reveals gaps, extreme values, skewness or unusual patterns that are much harder to diagnose using numerical methods alone.
+For many characteristics of datasets, a visualisation is also a more efficient way of describing it than through prose or tabulated values.
 
 ## Types of data
 
+Data can be **qualitative** or **quantitative**.
+
+Qualitative data have labels but no absolute numerical meaning; they can be simple groups (**nominal**), possibly with a nested structure (**hierarchical**), or relatively-ordered categories (**ordinal**).
+
+Quantitative data have explicit numerical interpretation: if **discrete**, the outcome can take one of a _countable_ set of possible values; if **continuous**, the possible values are _uncountably_ infinite.
+
+Examples include:
+
+Nominal
+: hair colour, blood group, forename
+
+Hierarchical
+: administrative authority
+
+Ordinal
+: cancer staging (I, II, III, IV), level of agreement on a Likert scale (i.e. strongly agree, agree, disagree, strongly disagree), level of education
+
+Discrete
+: population, number of children, date of birth
+
+Continuous
+: weight, height, systolic blood pressure, body fat percentage, oxygen concentration
+
+Continuous values can take on different scales: a **ratio** scale or an **interval** scale.
+
+A ratio scale can be added, subtracted, multiplied and divided, and has an absolute zero: for instance 20 kg is twice as massive as 10 kg, and 0 kg means zero mass.
+
+An interval scale can be added or subtracted, but has no absolute zero, so multiplication and division is not meaningful: 30&deg;C is more than 10&deg;C but is not three times warmer, and 0&deg;C is not zero heat.
+Temperature (except in Kelvin) is not a ratio scale.
+
+Nominal variables can have numeric labels, but that does not make them quantitative: e.g. the number 143 bus.
+
+In the real world, measurements do not have infinite precision and are sometimes considered discrete even if the underlying phenomenon is continuous.
+
+The type and scale of data determine the ways in which you can summarise, visualise and make inferences from them.
+
+### Exercise
+
+What types and scales are the following variables?
+
+1. number of visits to a GP this year
+2. marital status
+3. size of tumour in centimetres
+4. pain, rated on minimal/moderate/severe/unbearable
+5. blood pressure (mm Hg)
+
+### Data types in R
+
+In R, quantitative data are represented by `numeric` or `integer` vectors.
+Qualitative data are given as `character` (text/string) vectors, as `factors` (if the number of possible values is known) and, for ordinal data, as `ordered factors`.
+When reading in data from a file, be careful of nominal data with numeric labels, such as ID numbers; these may be automatically converted to `numeric` or `integer` when really you want `character` or `factor`.
+
 ## Qualitative data
+
+We summarise qualitative data by _counting_ them.
+Represent the number of observations of each level by their _frequency_ or _proportion_.
+
+We can then visualise frequencies/proportions via
+
+1. tables
+2. bar charts
+3. dot plots, waffle charts
+4. tree maps
+
+### Making tables
+
+To count discrete/qualitative data in R, use `table()` to get frequencies, then `proportions()` or `prop.table()` for relative proportions.
+On a single vector it will simply count the different values.
+Pass multiple arguments to generate a 2-way (or higher dimensional) table.
+Another way of generating multi-way tables is using `xtabs`.
+Alternatively, you can use `tally()` and `count()` from the **dplyr** package.
+
+For example, try the `diamonds` dataset (bundled with the **ggplot2** package).
+
+```{r}
+data(diamonds, package = 'ggplot2')
+table(diamonds$cut)
+proportions(table(diamonds$cut))
+```
+
+```{r, echo = -1}
+options(digits = 2)
+with(diamonds, table(color, cut))
+xtabs(~ color + cut, data = diamonds)
+proportions(table(diamonds$color, diamonds$cut), margin = 1)
+```
+
+```{r message=FALSE}
+library(dplyr)
+diamonds %>%
+  count(color, cut) %>%
+  group_by(cut) %>%
+  mutate(`%` = 100 * n / sum(n))
+```
+
+### Bar charts
+
+Also known as column charts.
+The length of each bar is proportional to the number of observations in each category.
+A grouped bar chart puts the bars side-by-side, so they have a common reference of zero.
+A stacked bar chart puts the bars on top of one another, which makes it easier to see the overall total in each category.
+A _proportional_ bar chart standardises each group to have unit length, for easier visualisation of within-group proportions.
+
+```{r chart-themes, echo=FALSE}
+library(hrbrthemes)
+library(ggplot2)
+theme_set(theme_ipsum_rc(grid = ''))
+```
+
+```{r bar-charts}
+library(ggplot2)
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'dodge') +
+  labs(title = 'Grouped bar chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'stack') +
+  labs(title = 'Stacked bar chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'fill') +
+  labs(title = 'Stacked proportional bar chart', y = 'Prop',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+A pie chart is just a proportional bar chart that's been transformed into polar coordinates.
+
+```{r pie, fig.height = 3, fig.width = 7}
+ggplot(as.data.frame(Titanic)) +
+  aes(Freq, '', fill = Survived) +
+  geom_col(position = 'fill') +
+  labs(title = 'Stacked proportional bar chart', x = NULL, y = NULL,
+       subtitle = 'Survival of passengers on RMS Titanic, by class') +
+  facet_wrap(~Class, nrow = 1) +
+  coord_polar() +
+  theme(axis.text.x = element_blank())
+```
+Don't use pie charts.
+Perceptually, it is easier to compare lengths than it is to compare angles or areas.
+
+### Dot plots and pictograms
+
+When counts are smaller, numbers can appear more concrete as pictograms, also known as [_isotype visualisations_](http://steveharoz.com/research/isotype/).
+Even without figurative icons you can represent subjects as stacked dots or squares, so that each shape represents a single person.
+
+This can be useful to avoid reading too much into a dataset that contains a small number of people.
+It's also an effective way of emphasising the impact that events have on individuals.
+
+Use `ggplot2::geom_dotplot` or the package **waffle** to produce such charts.
+
+```{r waffle, fig.width = 7, fig.height = 5, dev.args = list(type = 'cairo')}
+remotes::install_github('hrbrmstr/waffle')
+
+library(waffle)
+ggplot(as.data.frame(Titanic)) +
+  aes(fill = Survived, values = Freq) +
+  geom_waffle(colour = 'white', n_rows = 20, flip = TRUE) +
+  coord_equal() +
+  facet_wrap(~Class, nrow = 1) +
+  theme_enhance_waffle() +
+  theme(legend.position = 'bottom') +
+  labs(title = 'Faceted waffle chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+As the number of observations increases, the individual shapes get smaller and smaller and approximates a bar chart.
+
+You can also make a _proportional_ waffle chart.
+The individual shapes lose their meaning (no longer 1 square = 1 subject) but it can useful for unbalanced distributions (emphasising the relative size of the smallest and largest categories).
+
+```{r prop-waffle, fig.width = 7, fig.height = 4, dev.args = list(type = 'cairo')}
+ggplot(as.data.frame(Titanic)) +
+  aes(fill = Survived, values = Freq) +
+  geom_waffle(colour = 'white', n_rows = 10, flip = TRUE,
+              make_proportional = TRUE) +
+  coord_equal() +
+  facet_wrap(~Class, nrow = 1) +
+  theme_enhance_waffle() +
+  theme(legend.position = 'bottom') +
+  labs(title = 'Faceted proportional waffle chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+### Heat maps (tile maps)
+
+Where data have a two-way array structure, you can represent counts or proportions through colour, which is sometimes easier to read than a numeric table, especially when the number of rows and columns is very large and you are looking for patterns, extreme values or outliers.
+
+In **ggplot2**, use `geom_tile` (if you've already computed the frequencies) or `geom_bin2d` (if you want the package to count the subjects for you).
+
+```{r heatmap}
+library(ggplot2)
+ggplot(diamonds) +
+  aes(cut, color) +
+  geom_bin2d(aes(fill = after_stat(count))) +
+  scale_fill_viridis_c() +
+  labs(title = 'Heat map',
+       subtitle = 'Diamonds counted according to colour and quality of cut')
+```
+
+Limits of human perception make it difficult to read raw values off colour scales, but easier to spot patterns among shapes of varying colour.
+If you are going to use a colour scale, use `scale_colour_viridis` or another colour-blind-friendly palette.
+Don't use rainbow colour palettes.
+
+### Note on visualising counts in R
+
+In the R package **ggplot2**, generally speaking `geom_col()` is for when you have already computed the counts, and `geom_bar()` is for when you want the package to calculate the counts for you while generating the plot.
+The resulting final plot will look the same.
+For example, the built-in `Titanic` dataset is already given as explicit counts.
+But a typical epidemiological dataset might have one row for each subject (as in the `diamonds` example dataset).
+You can parametrise one function to act like the other with `stat = 'count'` or `stat = 'identity'`, respectively.
 
 ## Quantitative data
 
-## Further considerations
+The simplest (_not necessarily good, let alone best_) way of summarising quantitative data is to treat it as qualitative data.
+That is, by _discretising_ (binning) the values into a small number of groups (e.g. age bands), then presenting the frequency distribution of those groups using a table or chart, as above.
+If there are a small number of unique values (e.g. number of children per family) then you can report the counts without binning.
+
+### Binned data and histograms
+
+Might _look_ like a bar chart, but is very different.
+The _area_ of each rectangle represents the frequency of observations in the interval.
+There are no gaps between bars.
+Bars can be varying widths.
+
+How many bars and what width?
+This is a difficult question and has profound influence on the resulting graphic.
+For this reason, **ggplot2** will print a warning message about this, if you do not specify the number of bins explicitly.
+It will default to 30 bins, which is not intended to be a good default, but to get you experimenting.
+
+For this example we use the [`htwt.csv`](https://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-02-summarising/htwt.csv) dataset of measured and reported body mass indices.
+
+```{r histogram, echo = -1, message = TRUE}
+htwt <- read.csv('../../_stata/2020-04-02-summarising/htwt.csv')
+ggplot(htwt) +
+  aes(nurseht) +
+  geom_histogram() +
+  facet_wrap(~ sex) +
+  labs(x = 'measured height (cm)',
+       title = 'Histogram', subtitle = 'With arbitrary default 30 bins')
+
+ggplot(htwt) +
+  aes(nurseht) +
+  geom_histogram(breaks = seq(140, 200, by = 2.5)) +
+  facet_wrap(~ sex) +
+  labs(x = 'measured height (cm)',
+       title = 'Histogram', subtitle = 'With 24 bins of width 2.5 cm')
+```
+By default the y-axis will represent counts.
+Change it to density using `aes(y = ..density..)`.
+
+Histograms are **not** recommended unless, _a priori_, you can pre-specify break points along the *x*-axis (e.g. age bands), because they are _highly_ sensitive to the positions of breakpoints and number of bins.
+
+For example, a dataset with ten observations of every integer value of $x$ from 1 to 40, _should_ appear as a uniform distribution over this range, but it doesn't because the default number of bins (in **ggplot**) is 30:
+
+```{r histogram-uniform, message = TRUE}
+uniform <- data.frame(x = rep(1:40, each = 10))
+
+ggplot(uniform) +
+  aes(x) +
+  geom_histogram(colour = 'grey')
+
+ggplot(uniform) +
+  aes(x) +
+  geom_histogram(breaks = c(0, 10, 20, 30, 40),
+                 colour = 'grey')
+```
+
+For small numbers of observations you might like to use a dot plot.
+But you still need to choose the positions of the stacks of dots, just as with a histogram.
+
+```{r dotplot, fig.height = 3.5, fig.width = 7}
+ggplot(uniform) +
+  aes(x) +
+  geom_dotplot(binwidth = 1) +
+  theme(axis.text.y = element_blank()) +
+  labs(title = 'Dot plot', subtitle = 'With bin width of 1', y = NULL)
+```
+
+Generally, avoid discretising data unless you have a compelling reason.
+(The 'correct' choice in this case is 40 bins, because we know the data are uniform.
+But if you already knew the data were uniform, what's the purpose of the visualisation?)
+
+If you have no prior idea of sensible bin widths or break points, use a kernel density plot and it should pick a reasonable bandwidth automatically.
+A kernel density plot is essentially just a smoothed version of a histogram.
+It tends to work better than an ordinary histogram, except where smoothing might not be appropriate (gaps or sudden jumps in the frequencies), in which case you might want to start with a kernel density plot, diagnose discontinuities and then switch to another plotting method.
+
+```{r density-uniform}
+ggplot(uniform) +
+  aes(x) +
+  geom_density(bw = 1) +
+  labs(title = 'Kernel density plot')
+```
+
+For the `htwt` data we get the following kernel density plot.
+If comparing groups, you can plot them on the same axes, or faceted in a way that allows direct comparison of the scales.
+
+```{r htwt-density, fig.width = 7, fig.height = 4}
+ggplot(htwt) +
+  aes(nurseht, fill = sex) +
+  geom_density(alpha = .75) +
+  labs(x = 'measured height (cm)',
+       title = 'Kernel density plot',
+       subtitle = 'Two groups on same axes')
+
+ggplot(htwt) +
+  aes(nurseht, sex, fill = sex) +
+  ggridges::geom_density_ridges() +
+  labs(x = 'measured height (cm)',
+       title = 'Kernel density plot',
+       subtitle = 'Two groups on separate axes') +
+  theme(legend.position = 'none')
+```
+
+Better yet, identify outliers, if any, with a jittered scatter plot.
+
+```{r jitter-uniform}
+ggplot(uniform) +
+  aes(x, '') +
+  geom_jitter(width = 0) +
+  labs(title = 'Jittered scatter plot', y = NULL)
+```
+
+A dot plot with a binwidth of 1 is essentially the same thing as the jittered scatter plot but with all the random vertical gaps removed.
+
+```{r htwt-dotplot, fig.width = 7, fig.height = 9}
+ggplot(htwt) +
+  aes(nurseht) +
+  geom_dotplot(stackdir = 'centerwhole', binwidth = 1, method = 'histodot') +
+  facet_wrap(~ sex, ncol = 1) +
+  labs(x = 'measured height (cm)', y = NULL,
+       title = 'Centred dot plots', subtitle = 'With bin width of 1 cm') +
+  theme(axis.text.y = element_blank())
+```
+
+### Distributional summary measures
+
+Certain data distributions can be represented more compactly than via visualisations.
+Often (not always) we can concisely communicate the important characteristics of the distribution using _summary statistics_.
+
+#### Location measures
+
+What is the _average_ or the value of a 'typical' observation?
+
+- Mean, $\bar x = \frac1n\sum_{i=1}^n x_i$
+- Median (the 2^nd^ quartile or 50^th^ centile)
+- _rarely anything else (other than after a transformation)_
+
+#### Scale (variation) measures
+
+What is the _spread_ of the data?
+
+- Range, $\text{range} = \max - \min$
+- Quantiles, cut points that split the data into equal proportions
+  - *quartiles* split data into *quarters*
+  - *centiles* (percentiles) split data into *hundredths*
+- Inter-quartile range, $\text{IQR} = Q_3 - Q_1$
+- Standard deviation, $\text{sd} = \sqrt{\frac1{n-1}\sum(x_i-\bar x)^2}$
+  - sensitive to outliers
+  - same units as observations
+- Mean absolute deviation, $\text{MAD} = \frac1n\sum|x_i-m(x)|$ 
+  - &le; standard deviation, less sensitive to outliers
+  - can't be plugged into normal distribution
+
+A _confidence interval_ is a special case of an inter-*quantile* range (namely: the difference between upper and lower quantiles of a theoretical normal distribution).
+
+------------
+
+In R, you can calculate the mean, quartiles and extreme values using `summary`.
+Combine it with `by` to compute summaries by a grouping variable.
+
+```{r}
+by(htwt$nurseht, htwt$sex, summary)
+```
+
+In R, there are dedicated functions for most common statistics including `mean`, `sd`, `median`, `quantile`, `IQR`, `min`, `max`, `mad`, `range` (min, max) and so on.
+
+```{r}
+htwt %>%
+  filter(!is.na(nurseht)) %>% # exclude missing values
+  group_by(sex) %>%
+  summarise(mean = mean(nurseht),
+            sd = sd(nurseht),
+            Q1 = quantile(nurseht, .25),
+            median = median(nurseht),
+            Q3 = quantile(nurseht, .75),
+            IQR = IQR(nurseht),
+            min = min(nurseht),
+            max = max(nurseht),
+            MAD = mad(nurseht)) %>%
+  knitr::kable()
+```
+
+You can generate publication-quality tables using `knitr::kable` and friends.
+
+By convention, medical papers tend to report in the first table:
+
+- count (%) for qualitative values
+- mean (sd) for continuous values
+- median (IQR) for continuous values thought to be skewed
+- mean (95% confidence interval) for parameter estimates
+
+See the R-thritis worksheet [**Best practices for building baseline tables**](https://personalpages.manchester.ac.uk/staff/david.selby/rthritis/2021-01-29-tables/) for more information.
+
+### Box and whisker diagram (box plot)
+
+A box and whisker plot is a very efficient summary of the distribution, assuming your summary measures of interest are the quartiles: i.e. first quartile (25^th^ centile), the median (second quartile / 50^th^ centile), third quartile (75^th^ centile) and the minimum and maximum (possibly excluding outliers).
+
+The "whiskers" extend to the minimum and maximum, or to the smallest and largest observations that are within the interval $\text{median} \pm 1.5 \times \text{IQR}$.
+Outliers, if any, are marked as separate dots.
+
+A box plot can help show skewness but not bimodality.
+A single box plot is not terribly demonstrative (it's more efficient just to tabulate the quartiles instead) but it is a useful way visualising how the respective quartiles differ between multiple groups.
+
+```{r boxplot}
+ggplot(htwt) +
+  aes(nurseht, sex, fill = sex) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = 'Box plots',
+       subtitle = 'Quartiles of measured height, by sex',
+       x = 'measured height (cm)', y = NULL)
+```
+
+## The normal distribution
+
+The [normal distribution](https://en.wikipedia.org/wiki/Normal_distribution) (Gaussian distribution, 'bell curve') is [_symmetric_](https://en.wikipedia.org/wiki/Skewness), [_unimodal_](https://en.wikipedia.org/wiki/Unimodality) and [_mesokurtic_](https://en.wikipedia.org/wiki/Kurtosis).
+It is entirely defined by two parameters:
+
+- Location: mean
+- Scale: standard deviation
+
+A _standard normal_ distribution has mean 0 and standard deviation 1.
+Other distributions are more complex to describe or interpret via parameters, and easier to represent graphically.
+
+Asymmetric distributions are _skewed_:
+
+- positive (right) skew: some extremely high values, long upper tail
+- negative (left) skew: some extremely low values, long lower tail
+  
+It is easy to diagnose when a distribution is obviously _not_ normal by looking at a density plot or histogram.
+But it's not quite so easy to verify when a distribution _is_ approximately normal this way.
+For that you should always use quantile--quantile (QQ) plots.
+In practice, the only reliable way to verify normality (and diagnose departures from normality) is using QQ plots.
+
+```{r normal-density, echo = FALSE}
+ggplot(htwt %>% filter(sex == 'female')) +
+  aes(nurseht) +
+  geom_density() +
+  stat_function(fun = dnorm,
+                args = with(htwt, list(mean = mean(nurseht[sex == 'female'], na.rm = T),
+                                       sd = sd(nurseht[sex == 'female'], na.rm = T))),
+                colour = 'tomato', linetype = 'dashed') +
+  labs(x = 'measured height (cm)',
+       title = 'Empirical vs. normal density curve',
+       subtitle = 'Are the heights of female patients normally distributed?')
+```
+
+Looks approximately normal, but how different would it have to be before we said it didn't?
+And would our conclusion change if we specified a different bandwidth (for density plots) or bin width (for histograms) for the data?
+
+With a QQ plot, at least we don't have to worry about choice of bin width.
+
+```{r qqplot}
+ggplot(htwt) +
+  aes(sample = nurseht) +
+  geom_qq() +
+  geom_qq_line() +
+  facet_wrap(~ sex) +
+  labs(title = 'Normal quantile–quantile plots',
+       subtitle = 'Sample quantiles of measured height (cm)')
+```
+
+The male patients' heights have a near-perfect normal distribution.
+The female patients' heights are approximately normal but the tails seem to be slightly heavier than a theoretical normal distribution with the same mean and standard deviation; in other words there are more extreme values than we might expect.
+But this deviation is very small and not worth worrying about in this case.
+
+Note the line on a QQ plot can be whatever you want: often it's a line through the first and third quartiles, but it could also be a least-squares regression line, a line through the first and 99th percentile or something else.
+You are examining whether the points fall along a single straight line, whatever the equation of that line might be (i.e. the slope doesn't have to be exactly 1).
+
+### Unimodality
+
+If there is more than one 'mode' (peak) in a distribution then it suggests the data would be better described by a _mixture_ of normals (if not another distribution entirely).
+
+```{r faithful, echo=FALSE}
+ff1 <-
+  ggplot(faithful) +
+  aes(waiting) +
+  geom_density(colour = 'steelblue') +
+  #geom_rug(colour = 'steelblue') +
+  labs(title = 'Bimodal distribution (Old Faithful geyser eruptions)',
+       subtitle = 'Density plot',
+       x = 'waiting time (min)') +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(faithful$waiting),
+                            sd = sd(faithful$waiting)),
+                colour = 'tomato2', linetype = 'longdash')
+
+ff2 <-
+  ggplot(faithful) +
+  aes(sample = waiting) +
+  geom_qq() +
+  geom_qq_line(line.p = c(.1, .9)) +
+  labs(title = '', subtitle = 'Quantile–quantile plot')
+
+gridExtra::grid.arrange(ff1, ff2, nrow = 1)
+```
+
+In the height and weight data, the measurements might look slightly bimodal if you failed to segregate them by sex.
+
+### Skewness
+
+If a distribution is not symmetric, it is skewed.
+Positive (negative) skewness implies more high (low) values than would otherwise be expected from a symmetric distribution.
+
+```{r skewness, echo=FALSE}
+skewed <- data.frame(x = exp(rnorm(200, mean = 0, sd = .5)),
+                     y = sn::rsn(200, alpha = -10) + 10)
+
+sk1 <-
+  ggplot(skewed) +
+  aes(x) +
+  geom_density(colour = 'steelblue') +
+  labs(title = 'Positive skew',
+       subtitle = 'Density plot') +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(skewed$x), sd = sd(skewed$x)),
+                colour = 'tomato2', linetype = 'longdash') +
+  theme(axis.text.y = element_blank())
+
+sk2 <-
+  ggplot(skewed) +
+  aes(sample = x) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = '', subtitle = 'Quantile–quantile plot')
+
+gridExtra::grid.arrange(sk1, sk2, nrow = 1)
+
+nsk1 <-
+  ggplot(skewed) +
+  aes(y) +
+  geom_density(colour = 'steelblue') +
+  labs(title = 'Negative skew',
+       subtitle = 'Density plot') +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(skewed$y), sd = sd(skewed$y)),
+                colour = 'tomato2', linetype = 'longdash') +
+  theme(axis.text.y = element_blank())
+
+nsk2 <-
+  ggplot(skewed) +
+  aes(sample = y) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = '', subtitle = 'Quantile–quantile plot')
+
+gridExtra::grid.arrange(nsk1, nsk2, nrow = 1)
+```
+
+A rough and ready test for skewness is to check if the median is approximately equal to the mean.
+If they are very different, the data may be skewed.
+However, the scale of 'very different' is dependent on sample size, so you should draw a plot as well.
+
+### Kurtosis
+
+[Kurtosis](https://en.wikipedia.org/wiki/Kurtosis) is a measure of how heavy (fat) the tails are.
+Not every symmetric, unimodal distribution is a normal distribution!
+
+Leptokurtic (fat tailed) distributions might be a result of outliers, due to measurement error.
+Platykurtic (thin tailed) distributions can result from sample values being artificially bounded in some way (for example due to limits of a measurement range of a device).
+
+```{r kurtosis, echo=FALSE}
+set.seed(2)
+kurt <- data.frame(lepto = rt(200, 2),
+                   platy = sample(5:20, 200, replace = TRUE))
+
+kt1 <-
+  ggplot(kurt) +
+  aes(lepto) +
+  geom_density(bw = 4, colour = 'steelblue') +
+  labs(title = 'Leptokurtic (fatter tails)',
+       subtitle = 'Density plot') +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(kurt$lepto), sd = sd(kurt$lepto)),
+                colour = 'tomato2', linetype = 'longdash') +
+  theme(axis.text.y = element_blank())
+
+kt2 <-
+  ggplot(kurt) +
+  aes(sample = lepto) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = '', subtitle = 'Quantile–quantile plot')
+
+gridExtra::grid.arrange(kt1, kt2, nrow = 1)
+
+pkt1 <-
+  ggplot(kurt) +
+  aes(platy) +
+  geom_density(colour = 'steelblue') +
+  xlim(0, 25) +
+  labs(title = 'Platykurtic (thinner tails)',
+       subtitle = 'Density plot') +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(kurt$platy), sd = sd(kurt$platy)),
+                colour = 'tomato2', linetype = 'longdash') +
+  theme(axis.text.y = element_blank())
+
+pkt2 <-
+  ggplot(kurt) +
+  aes(sample = platy) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = '', subtitle = 'Quantile–quantile plot')
+
+gridExtra::grid.arrange(pkt1, pkt2, nrow = 1)
+```
+
+### Mathematical tests of normality
+
+There are null-hypothesis significance tests available to test for normality, for example the [Shapiro--Wilk test](https://en.wikipedia.org/wiki/Shapiro%E2%80%93Wilk_test).
+*Avoid* using these, except to verify your conclusions from graphical tests.
+
+1. A result of $p<\alpha$ tells you nothing about _how_ the data are non-normal (or how much), meaning you will have to visualise the data anyway to find out.
+2. The test will almost always fail for large datasets. By contrast, quantile--quantile plots are insensitive to sample size.
+3. If you are visualising the data anyway (which you always will be), a significance test is redundant. Quantile--quantile plots are easy to generate.
+
+**In conclusion:** use any method you like to determine normality, so long as that method is a QQ plot.
+
+### Transforming data
+
+Skewed distributions can be made symmetric using a mathematical transformation.
+Taking logs is the most common.
+Other transformations (e.g. square root, reciprocal) can be used, but are much more difficult to interpret.
+It may be better to transform back to original units when presenting results.
+
+## Practical exercises
+
+### Fundamentals
+
+PImax, the maximal static inspiratory pressure, is a measure of lung function, given in units cm H<sub>2</sub>O.
+The following is a list of lung function measurements for a set of cystic fibrosis patients.
+
+80, 85, 110, 95, 95, 100, 45, 95, 130, 75, 80, 70, 80, 100, 120, 110, 125, 75, 100, 40, 75, 110, 150, 75, 95.
+
+Try completing the following exercises by hand, then check your answers with a computer.
+
+1. Find the median of the lung function measurements.  
+*Hint: start by writing down the measurements in order.*
+
+2. Calculate the inter-quartile range.
+
+3. Calculate the mean.
+
+4. Calculate the standard deviation.
+
+### Exploring the data
+
+Read the dataset [`htwt.csv`](https://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-02-summarising/htwt.csv) into R by downloading it to your desktop or using
+
+```r
+path <- 'https://personalpages.manchester.ac.uk/staff/david.selby/stata/2020-04-02-summarising/htwt.csv'
+htwt <- read.csv(path)
+```
+
+This file includes two BMI variables: `bmi`, which was based on measured data and `bmirep`, which was based on reported data.
+
+1. Examine the distribution of measured BMI scores by displaying an appropriate visualisation, such as a histogram or kernel density plot. (Choose a sensible binwidth or number of bins.)
+
+```{r, eval = FALSE}
+library(ggplot2)
+ggplot(htwt) + aes(bmi) + geom_histogram(binwidth = 1)
+```
+
+2. Produce a quantile--quantile plot of the measured BMI scores. Are the data normally distributed or do they show some skewness?
+
+```{r eval=FALSE}
+ggplot(htwt) + aes(sample = bmi) + geom_qq() + geom_qq_line()
+```
+
+### Summarising the data
+
+1. Calculate summary measures of the measured BMI using the function call:
+
+```{r eval=FALSE}
+summary(htwt$bmi)
+```
+
+2. Write down the mean BMI.
+
+3. How does the mean compare to the median?
+
+4. What are the lower and upper quartiles of the observed values?
+
+### BMI subdivided by sex
+
+1. Summarise the data separately for each sex, using your preferred choice of grouping function (`by`, `aggregate`, `dplyr::group_by` etc.). For example:**
+
+```{r eval=FALSE}
+with(htwt, by(bmi, sex, summary))
+```
+
+2. The distributions for the two sexes can be neatly compared graphically using boxplots. The function call to do this (using ggplot2) is as follows. Write down a short description of what you see.**
+
+```{r eval=FALSE}
+ggplot(htwt) + aes(sex, bmi) + geom_boxplot()
+```
+
+3. Visualise the data by sex again, this time using kernel density plots or histograms. Describe what you see.
+
+```{r eval=FALSE}
+ggplot(htwt) + aes(bmi, colour = sex) + geom_density()
+ggplot(htwt) + aes(bmi) + geom_histogram(binwidth = 2) + facet_grid(sex ~ .)
+```
+
+### Split-apply-combine
+
+The packages **dplyr** and/or **data.table** can be used to produce tables of summary statistics.
+They are similar to the base functions `summary`, `aggregate` and `by`, but more flexible.
+The basic syntax for split-apply-combine (split the data into groups, apply a summary function, combine the results) in **dplyr** is:
+
+```r
+library(dplyr)
+dataset %>% group_by(factorvar) %>% summarise(name = fun(variable))
+```
+where `dataset` is a data frame, `factorvar` is the name of an optional grouping variable, `name` is an optional output label and `fun` is a summary function (e.g. `mean`).
+For example,
+
+```{r, eval=FALSE}
+htwt %>% summarise(mean = mean(bmi, na.rm = TRUE),
+                   sd = sd(bmi, na.rm = TRUE))
+```
+
+would give the mean and standard deviation of BMI for the whole sample (note R does not ignore missing values by default).
+Passing a variable to `group_by` enables you to obtain the statistics for different subgroups:
+
+```{r, eval=FALSE}
+htwt %>%
+  group_by(sex) %>%
+  summarise(mean = mean(bmi, na.rm = TRUE),
+            sd = sd(bmi, na.rm = TRUE))
+```
+
+You can do this in base R if you prefer but the syntax is less flexible:
+
+```{r, eval=FALSE}
+aggregate(bmi ~ sex, htwt, FUN = function(x) c(mean = mean(x), sd = sd(x)))
+```
+
+1. Compute the mean and standard deviation of height and weight, as measured by the nurse, for men and women separately.
+
+### Further exercises
+
+1. What is the average age of the subjects?
+
+2. Draw a histogram or density plot of the ages, accompanied by a QQ plot. Do the ages follow a normal distribution?
+
+3. How old are the youngest and oldest males and females in the study?
+
+4. What is the mean of the self-reported BMI? Is this greater or less than the mean of the BMI as measured by the nurse?
+
+5. Assign a variable for the difference between measured BMI and self-reported BMI:
+
+```{r, eval=FALSE}
+htwt <- transform(htwt, bmidiff = bmi - bmirep)
+```
+
+Write down its mean value, standard deviation and the number of subjects for whom both BMI measures are available (hint: use the `summary` function).
+
+6. Produce quantile--quantile plots of height in men and women, using the function call:
+
+```{r, eval=FALSE}
+ggplot(htwt) + aes(sample = nurseht) + facet_wrap(~ sex) +
+  geom_qq() + geom_qq_line()
+```
+
+and
+
+```{r eval=FALSE}
+ggplot(htwt) + aes(sample = nursewt) + facet_wrap(~ sex) +
+  geom_qq() + geom_qq_line()
+```
+
+7. Write up your results and comments in an R Markdown document.
+
+## Further reading
+
+@Tufte2001
+
+## References

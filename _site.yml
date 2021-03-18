@@ -31,6 +31,9 @@ collections:
   stata:
     citations: false
     categories: false
+  analysis:
+    citations: false
+    categories: false
 base_url: https://personalpages.manchester.ac.uk/staff/david.selby/
 twitter:
   site: '@CfEUoM'
