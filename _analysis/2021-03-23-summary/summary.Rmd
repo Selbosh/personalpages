@@ -56,9 +56,11 @@ Download it from the [Comprehensive R Archive Network](https://cran.r-project.or
 
 If you have questions or comments about any of these materials, please contact david.selby@manchester.ac.uk.
 
-Download the main lecture slides:
+```{r echo=FALSE}
+knitr::include_url('lecture1.html')
+```
 
-- Slides link (coming soon) <i class="fa fa-file-pdf" title="PDF"></i>
+- [View the lecture slides](lecture1.html)
 
 Links to example datasets are provided in the respective sections below.
 

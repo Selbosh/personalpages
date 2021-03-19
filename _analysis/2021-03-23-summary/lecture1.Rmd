@@ -1,0 +1,340 @@
+---
+title: Analytical Epidemiology I
+subtitle: Summarising Data
+author: David Selby
+date: '23^rd^ March 2021'
+output:
+  xaringan::moon_reader:
+    nature:
+      slideNumberFormat: |
+        <div class="progress-bar-container">
+          <div class="progress-bar" style="width: calc(%current% / %total% * 100%);">
+          </div>
+        </div>
+css: rth.css
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(comment = '', warning = FALSE, message = FALSE,
+                      fig.width=8, fig.height=5, out.width='100%', dpi=300)
+```
+
+```{css, echo=FALSE}
+dd {
+  font-size: 90%;
+}
+
+.purple { color: #644BA5; }
+.pink { color: #EB64A0; }
+.blue { color: #0073BE; }
+.green { color: #37A53C; }
+.yellow { color: #FAB900; }
+.red { color: #E61E32; }
+    
+ul, ol {
+  padding-left: 0;
+}
+ol li {
+  margin-top: .5em;
+}
+ul ul, dl {
+  padding-left: 1em;
+}
+
+code {
+  color: #644BA5;
+}
+
+.remark-slide-number {
+  position: inherit;
+}
+
+.remark-slide-number .progress-bar-container {
+  position: absolute;
+  bottom: 0;
+  height: 4px;
+  display: block;
+  left: 0;
+  right: 0;
+}
+
+.remark-slide-number .progress-bar {
+  height: 100%;
+  background-color: #0073BE;
+}
+```
+
+---
+
+## Stats in the basic epi course
+
+- **Analysis 1**
+  - today
+  - descriptive statistics
+- **Analysis 2**
+  - next week (30 March)
+  - inferential statistics
+  
+--
+
+**Today**: different types of data and how to summarise them
+
+- visual summaries
+- numerical summaries
+
+.small[https://personalpages.manchester.ac.uk/staff/david.selby/analysis.html]
+
+---
+
+Data can be **qualitative** or **quantitative**.
+
+### Qualitative
+
+<dl>
+<dt>nominal</dt>
+<dd>named groups, no numerical interpretation</dd>
+<dt>ordinal</dt>
+<dd>groups with a <em>relative</em> ordering</dd>
+</dl>
+
+### Quantitative
+
+<dl>
+<dt>discrete</dt>
+<dd>countable set of possible values</dd>
+<dt>continuous</dt>
+<dd>uncountably many possible values</dd>
+</dl>
+
+---
+
+## Examples of data types
+
+<dl>
+<dt>nominal</dt>
+<dd>blood group; hair colour</dd>
+<dt>ordinal</dt>
+<dd>strongly agree/agree/disagree/strongly disagree; education</dd>
+<dt>discrete</dt>
+<dd>number of children; date of birth</dd>
+<dt>continuous</dt>
+<dd>birthweight, height, body fat percentage</dd>
+</dl>
+
+---
+
+## Caveats with data types
+
+Distinctions between data types can be _subjective._
+
+--
+
+- Cancer staging I, II, III, IV: nominal or ordinal?
+
+--
+
+- Number of long-term conditions: discrete or ordinal?
+
+--
+
+- Continuous phenomena &rArr; discrete measurements
+
+--
+  
+- .red[Red] and .blue[blue]? Or .red[\#FF0000] and .blue[\#0000FF]?
+
+--
+
+Depends on the **application** or **research question**.
+
+---
+
+## Examples of data types
+
+What type of variable are each of the following:
+
+1. number of visits to a GP this year
+2. marital status
+3. size of tumour in cm
+4. pain (minimal, moderate, severe, unbearable)
+5. blood pressure in mm Hg
+
+---
+
+layout: false
+class: inverse, middle, center
+
+# Qualitative data
+
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+---
+
+## Summarising qualitative data
+
+--
+
+**Count** the number of subjects/observations in each group
+
+The count is called the *frequency*.
+
+The proportion is called the *relative frequency*.
+
+--
+
+- **R:** use `table()`, `prop.table()` and `xtabs()` functions
+  - **dplyr**: `count()` and `tally()`
+  - **data.table**: `.N`
+- **Stata:** use `tabulate` command
+
+---
+
+## Summarising counts
+
+How many penguins, by *sex* and *species*?
+
+```{r, echo=3}
+options(digits = 2)
+data(penguins, package = 'palmerpenguins')
+with(penguins, table(sex, species))
+```
+
+--
+
+```{r, echo=1}
+with(penguins, proportions(table(sex, species), margin = 2))
+```
+
+---
+
+## Visualising counts
+
+We can communicate frequencies/proportions by representing them as:
+
+1. **text:** tables
+2. **shapes:** dot plots, waffle charts, pictograms
+3. **length:** bar or column charts
+4. **colour:** heat maps or chloropleth maps
+5. **area:** tree maps, ~~pie charts~~
+
+---
+
+## Visualising counts
+
+Tables are **just one way of visualising data**.
+They can be *precise*, but often a poor way of spotting *trends* or *anomalies*.
+
+--
+
+```{r echo = FALSE}
+library(ggplot2)
+
+with(diamonds, table(cut, color))
+```
+
+---
+
+## Visualising counts
+
+Tables are **just one way of visualising data**.
+They can be *precise*, but often a poor way of spotting *trends* or *anomalies*.
+
+```{r diamonds, echo=FALSE, fig.width=8, fig.height=4}
+library(hrbrthemes)
+library(extrafont)
+loadfonts(device = 'win')
+theme_set(theme_ipsum_rc(grid = F) +
+            theme(plot.margin = margin(5, 5, 5, 5)))
+ggplot(diamonds) +
+  aes(cut, color) +
+  geom_bin2d() +
+  scale_fill_viridis_c()
+```
+
+---
+
+## Indexical visualisation
+
+```{r waffle, echo = FALSE}
+library(waffle)
+ggplot(as.data.frame(Titanic)) +
+  aes(fill = Survived, values = Freq) +
+  geom_waffle(colour = 'white', size = .5, n_rows = 20, flip = TRUE) +
+  coord_equal() +
+  facet_wrap(~Class, nrow = 1) +
+  theme_enhance_waffle() +
+  #theme(legend.position = 'bottom') +
+  labs(title = 'Waffle chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+---
+
+## Bar charts
+
+```{r grouped-bar, echo=FALSE}
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'dodge') +
+  labs(title = 'Grouped bar chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+---
+
+## Bar charts
+
+```{r stacked-bar, echo=FALSE}
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'stack') +
+  labs(title = 'Stacked bar chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+---
+
+## Bar charts
+
+```{r stacked-prop-bar, echo=FALSE}
+ggplot(as.data.frame(Titanic)) +
+  aes(Class, Freq, fill = Survived) +
+  geom_col(position = 'fill') +
+  labs(title = 'Stacked proportional bar chart',
+       subtitle = 'Survival of passengers on RMS Titanic, by class',
+       y = 'Prop')
+```
+
+---
+
+layout: false
+class: inverse, middle, center
+
+# Intermission
+
+Questions?
+
+*After the break:* **quantitative data**
+
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+---
+
+# Quantitative data
+
+*To be continued*
