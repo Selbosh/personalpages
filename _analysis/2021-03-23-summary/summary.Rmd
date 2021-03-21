@@ -293,7 +293,7 @@ Don't use rainbow colour palettes.
 In the R package **ggplot2**, generally speaking `geom_col()` is for when you have already computed the counts, and `geom_bar()` is for when you want the package to calculate the counts for you while generating the plot.
 The resulting final plot will look the same.
 For example, the built-in `Titanic` dataset is already given as explicit counts.
-But a typical epidemiological dataset might have one row for each subject (as in the `diamonds` example dataset).
+But a typical epidemiological dataset might have one row for each subject (as in the `diamonds` example dataset, or `ggmosaic::titanic`).
 You can parametrise one function to act like the other with `stat = 'count'` or `stat = 'identity'`, respectively.
 
 ## Quantitative data
@@ -449,8 +449,6 @@ What is the _spread_ of the data?
   - can't be plugged into normal distribution
 
 A _confidence interval_ is a special case of an inter-*quantile* range (namely: the difference between upper and lower quantiles of a theoretical normal distribution).
-
-------------
 
 In R, you can calculate the mean, quartiles and extreme values using `summary`.
 Combine it with `by` to compute summaries by a grouping variable.

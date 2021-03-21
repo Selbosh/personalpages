@@ -180,7 +180,7 @@ background-size: 70px
 
 ---
 
-## Summarising qualitative data
+# Qualitative data
 
 --
 
@@ -225,7 +225,7 @@ We can communicate frequencies/proportions by representing them as:
 2. **shapes:** dot plots, waffle charts, pictograms
 3. **length:** bar or column charts
 4. **colour:** heat maps or chloropleth maps
-5. **area:** tree maps, ~~pie charts~~
+5. **area:** mosaic/spine plots, tree maps, ~~pie charts~~
 
 ---
 
@@ -310,10 +310,44 @@ ggplot(as.data.frame(Titanic)) +
 ggplot(as.data.frame(Titanic)) +
   aes(Class, Freq, fill = Survived) +
   geom_col(position = 'fill') +
-  labs(title = 'Stacked proportional bar chart',
+  labs(title = 'Stacked proportional bar plot',
        subtitle = 'Survival of passengers on RMS Titanic, by class',
        y = 'Prop')
 ```
+
+---
+
+## Mosaic plots or spine plots
+
+```{r mosaicplot, echo=FALSE}
+# as.data.frame(Titanic) %>%
+#   xtabs(Freq ~ Class + Survived, data = .) %>%
+#   mosaicplot(col = c('#F8766D', '#00BFC4'), border = NA,
+#              main = 'Mosaic plot (spine plot) of Titanic survival')
+library(ggmosaic)
+titanic %>%
+  transform(Survived = relevel(Survived, 'Yes')) %>%
+  ggplot() +
+  geom_mosaic(aes(product(Class), fill = Survived), alpha = 1) +
+  scale_fill_hue(direction = -1, h.start = 90) +
+  labs(title = 'Spine plot',
+       subtitle = 'Survival of passengers on RMS Titanic, by class')
+```
+
+---
+
+## R functions for visualising counts
+
+- **base**/**stats**: 
+  - `table`, `prop.table`, `proportions`, `xtabs`
+- **dplyr**
+  - `count`, `tally`, `n()`
+- **graphics**:t
+  - `plot`, `barplot`, `mosaicplot`, `spineplot`
+- **ggplot2**:
+  - built-in: `geom_bar`, `geom_col`, `geom_tile`
+  - `ggmosaic::geom_mosaic`
+  - `waffle::geom_waffle`
 
 ---
 
@@ -337,4 +371,153 @@ background-size: 70px
 
 # Quantitative data
 
-*To be continued*
+**Recall**: we report _qualitative_ data by counting them and printing/plotting the frequencies.
+
+A simple way to summarise _quantitative_ data is to **treat them as qualitative**:
+i.e. count the discrete values, or divide observations into bins, then count them.
+
+Tread carefully: the resulting figures are _highly sensitive_ to the choice of bins.
+
+---
+
+## Binning data
+
+Easier to count, _at cost of granularity_.
+
+```{r, echo = -1}
+htwt <- read.csv('../../_stata/2020-04-02-summarising/htwt.csv')
+age_band <- cut(htwt$age, c(18, 30, 40, 50, 60, 70, 80))
+addmargins(table(htwt$sex, age_band))
+```
+
+---
+
+### Histograms
+
+Like a bar chart of binned observations, _but_:
+
+- label boundaries, not bars (no gaps between bars)
+- _frequency_ on *y*-axis (frequency = height), **or**
+- _density_ on *y*-axis (frequency = area)
+
+```{r histogram, echo=FALSE, fig.height=3.5, out.width = '90%'}
+ggplot(htwt) + aes(age, ..density..) +
+  geom_histogram(breaks = c(18, 30, 40, 50, 60, 70, 80),
+                 colour = 'white') +
+  facet_wrap(~sex) +
+  scale_x_continuous(breaks = c(18, 30, 40, 50, 60, 70, 80))
+```
+
+---
+
+### Histograms
+
+How do you choose the number or position of bins?
+**Impossible to say.**
+_Don't_ just use the default!
+
+```{r histogram-ht, echo=T, fig.height=3, out.width='95%', message=TRUE}
+ggplot(htwt) + aes(nurseht) + facet_wrap(~sex) + geom_histogram() 
+```
+
+---
+
+### Histograms
+
+What could possibly go wrong?
+
+```{r histogram-uniform, fig.height=3, message=TRUE, out.width='95%'}
+uniform <- data.frame(x = rep(1:40, each = 10))
+ggplot(uniform) + aes(x) + geom_histogram()
+```
+
+---
+
+### Histograms
+
+A **kernel density plot** is a _smoothed histogram_.
+
+- _Bandwidth_ is picked automatically
+- Smooths out the noise
+- May mask discontinuities (but so can a histogram)
+
+```{r density, fig.height = 3.5, echo=FALSE, out.width = '90%'}
+ggplot(htwt) +
+  aes(nurseht, sex, fill = sex) +
+  ggridges::geom_density_ridges(show.legend = FALSE) +
+  labs(x = 'measured height (cm)', y = NULL) +
+  scale_y_discrete(expand = c(.2, 0))
+```
+
+---
+
+### Histograms
+
+Can use a **dot plot** for smaller data.
+
+```{r dotplot, fig.height = 4.25, fig.width = 6, out.width = '80%', echo=FALSE}
+ggplot(htwt) +
+  aes(nurseht) +
+  geom_dotplot(stackdir = 'centerwhole', binwidth = 1, method = 'histodot', dotsize = .75) +
+  facet_wrap(~ sex, ncol = 1) +
+  labs(x = 'measured height (cm)', y = NULL) +
+  theme(axis.text.y = element_blank()) +
+  coord_cartesian(clip = 'off') +
+  theme(panel.spacing = unit(0, 'pt'))
+```
+
+
+
+---
+
+layout: false
+class: inverse, middle, center
+
+# Summary measures
+
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+---
+
+# Summary measures
+
+- **Location:** what is the _average_ or _typical_ observed value?
+- **Scale:** what is the _spread_ of the data?
+
+### Location
+
+Mean, median, _not much else_
+
+### Scale
+
+Range, quantiles, inter-quantile range, standard deviation, mean absolute deviation, confidence intervals
+
+---
+
+More slides here
+
+*Lorem ipsum dolor sit amet.*
+
+---
+
+layout: false
+class: inverse, middle, center
+
+# The normal distribution
+
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+---
+
+# The normal distribution
+
