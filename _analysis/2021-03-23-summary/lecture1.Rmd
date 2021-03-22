@@ -21,7 +21,8 @@ background-size: 70px
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(comment = '', warning = FALSE, message = FALSE,
-                      fig.width=8, fig.height=5, out.width='100%', dpi=300)
+                      fig.width = 8, fig.height = 5, out.width = '100%',
+                      dpi = 300)
 ```
 
 ```{css, echo=FALSE}
@@ -67,6 +68,8 @@ code {
   height: 100%;
   background-color: #0073BE;
 }
+
+
 ```
 
 ---
@@ -339,10 +342,10 @@ titanic %>%
 ## R functions for visualising counts
 
 - **base**/**stats**: 
-  - `table`, `prop.table`, `proportions`, `xtabs`
+  - `table`, `ftable`, `prop.table`/`proportions`, `xtabs`
 - **dplyr**
-  - `count`, `tally`, `n()`
-- **graphics**:t
+  - `count`, `tally`, `summarise( n() )`
+- **graphics**:
   - `plot`, `barplot`, `mosaicplot`, `spineplot`
 - **ggplot2**:
   - built-in: `geom_bar`, `geom_col`, `geom_tile`
@@ -466,7 +469,28 @@ ggplot(htwt) +
   theme(panel.spacing = unit(0, 'pt'))
 ```
 
+---
 
+### Histograms
+
+A **spinogram** is a spine plot with one binned continuous variable.
+Both *x* and *y* axes represent relative frequency.
+
+```{r spinogram, echo=FALSE, out.width='85%'}
+par(mar = c(4, 4, .5, 2))
+transform(htwt, age_band = cut(age, c(18, 30, 40, 50, 60, 70, 80))) %>%
+  ggplot() +
+  geom_mosaic(aes(product(age_band), fill = sex), alpha = 1) +
+  scale_x_productlist('age',
+                      labels = c('18-30', '31-40', '41-50', '51-60',
+                                 '61-70', '71-80'))
+# breakpoints <- c(18, 10 * (3:8))
+# spineplot(factor(htwt$sex) ~ htwt$age,
+#           breaks = breakpoints,
+#           col = c('#00BFC4', '#F8766D'),
+#           border = 'white', bty = 'n',
+#           xlab = 'age', ylab = 'sex', axes = T)
+```
 
 ---
 
@@ -484,24 +508,158 @@ background-size: 70px
 
 ---
 
-# Summary measures
-
-- **Location:** what is the _average_ or _typical_ observed value?
-- **Scale:** what is the _spread_ of the data?
+### Summary measures
 
 ### Location
 
-Mean, median, _not much else_
+What is the _average_ or _typical_ observed value?
+
+- Mean, median, ...
 
 ### Scale
 
-Range, quantiles, inter-quantile range, standard deviation, mean absolute deviation, confidence intervals
+What is the _spread_ of the data?
+
+- Range, inter-qua*n*tile range, mean absolute deviation
+- standard deviation, confidence intervals
 
 ---
 
-More slides here
+## Measures of location
 
-*Lorem ipsum dolor sit amet.*
+The **arithmetic mean** is
+
+$$
+\begin{aligned}
+\bar x &= \frac{x_1 + x_2 + \dots + x_n}{n} \\
+       &= \sum_{i=1}^n x_i.
+\end{aligned}
+$$
+
+- easy to compute
+- location parameter for many probability distributions
+
+---
+
+## Measures of location
+
+The **median**: &ldquo;Sort the values and pick the middle one&rdquo;
+
+$$
+\operatorname{median}(x) =
+\begin{cases}
+x_{(n+1)/2} & n~\text{is odd} \\[1ex]
+\dfrac{x_{n/2} + x_{(n/2) + 1}}{2} & n~\text{is even}
+\end{cases}
+$$
+- Essentially a (**heavily**) _trimmed_ mean
+- Less sensitive to extreme outliers
+- More ‘typical’ than mean, if data are skewed
+
+---
+
+## Quantiles
+
+**Quantiles** are _cut points_ that divide data into equal proportions.
+
+- **quartiles** split data into _quarters_
+- **centiles** (percentiles) split data into *hundredths*
+
+The median is the 2.sup[nd] quartile or the 50.sup[th] centile.
+
+The zeroth quantile is the _minimum_ value; the last quantile is the _maximum_.
+
+---
+
+## Measures of variation
+
+How close are our data to the ‘typical’ value?
+
+- Range
+- Inter-qua*n*tile range
+  - Inter-quartile range (IQR)
+  - $(1-\alpha)$% confidence interval (CI)
+- Variance (standard deviation)
+- Mean absolute deviation
+
+---
+
+## Measures of variation
+
+#### Range
+
+$$\text{range}(x) = \max(x) - \min(x)$$
+
+- depends on only two measurements
+- can only increase with sample size
+
+#### Inter-quartile range
+
+$$\text{IQR}(x) = Q_{3/4}(x) - Q_{1/4}(x)$$
+
+- less sensitive to extreme values
+- not meaningful for very small datasets
+- not uniquely defined!
+
+---
+
+## Measures of variation
+
+#### Standard deviation
+
+$$\text{sd}(x) = \sqrt{\sum_{i=1}^n \frac{(x_i - \bar x)^2}{n-1}} $$
+
+- _nearly_ the ‘average distance from the mean’
+- uses information from every observation
+- sensitive to outliers
+- in the same units as the observations
+- easy to use mathematically
+
+---
+
+## Measures of variation
+
+#### Mean absolute deviation
+
+$$\text{MAD}(x) = \sum_{i=1}^n \frac{|x_i - \bar x|}{n} $$
+
+- the average distance from the mean (or median)
+- less sensitive to outliers
+- easy to compute
+- always &leq; standard deviation
+- _biased_ estimator; more difficult to use mathematically
+
+---
+
+## Summary statistics in R
+
+- `summary` will give quartiles, min, max & mean
+  - or counts of each level, if qualitative
+- `quantile` to compute quantiles
+    - e.g. `quantile(x, c(.25, .75))` for lower, upper quartiles
+- `mean`, `median`, `sd`, `var`, `mad`, `IQR`
+- `range` gives minimum and maximum
+
+```{r}
+summary(htwt$nursewt)
+```
+
+Compute by group with `by`, `aggregate` or `dplyr::group_by`
+
+---
+
+## Numerical summary: Table 1
+
+Overview of study sample.
+
+Report counts/proportions or location/scale (with units) for each variable.
+
+- **Normally distributed**: mean and SD
+- **Skewed distribution**: median and IQR
+- **Mixture/if in doubt**: median and IQR
+- **Qualitative**: frequency and proportion
+
+_Always_ align numbers by their decimal points.
 
 ---
 
@@ -519,5 +677,257 @@ background-size: 70px
 
 ---
 
-# The normal distribution
+## The normal distribution
+
+The normal (Gaussian) distribution is _symmetric_, _unimodal_ and _mesokurtic_.
+Described by **mean** and __standard deviation__.
+
+```{r normal, echo=FALSE, fig.height = 4, fig.width = 7, out.width='80%', fig.align = 'center'}
+ggplot() + aes() +
+  geom_function(fun = dnorm, size = 1) +
+  xlim(-3, 3) +
+  geom_vline(xintercept = 0, colour = '#E61E32', linetype = 'dashed', size = 1) +
+  annotate('text', 0, 0.02, label = 'mean', hjust = 1.1, size = 12, colour = '#E61E32') +
+  annotate('errorbar', xmin = 0, xmax = 1, y = .15, width = .05, colour = '#644BA5', size = 2) +
+  annotate('text', 0, .15, hjust = -.75, vjust = -1.25, label = 'sd', colour = '#644BA5', size = 12) +
+  labs(x = NULL, y = NULL) +
+  theme(axis.text.x =  element_blank(),
+        axis.text.y = element_blank())
+```
+
+---
+
+## The normal distribution
+
+Why care if data are normally distributed?
+
+- **Asymmetric**: very high or low values are skewing data
+  - mean no longer represents &lsquo;typical&rsquo; value
+- **Multimodal**: more than one peak
+  - indicates a mixture of groups
+- **Platykurtic**: thin tails
+  - unusually few / less extreme values
+  - bounded measurements?
+- **Leptokurtic**: fat tails
+  - unusually many / more extreme values
+  - anomalous measurements?
+  
+---
+
+## Assessing normality
+
+- Any way you like, so long as it's a **quantile—quantile plot**.
+
+```{r normality, echo=FALSE, fig.width = 7, fig.height = 3.5}
+set.seed(1)
+normal <- data.frame(x = rnorm(250, 20, 2))
+gridExtra::grid.arrange(
+  ggplot(normal) +
+    aes(sample = x) +
+    geom_qq() + geom_qq_line(),
+  ggplot(normal) +
+    aes(x) +
+    geom_density(colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(normal$x), sd = sd(normal$x)), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+```
+
+---
+
+### Positively skewed distribution
+
+Some extremely high values; long right tail
+
+```{r positive-skew, echo=FALSE, fig.width = 7, fig.height = 3.5}
+set.seed(1)
+posskew <- data.frame(x = exp(rnorm(250, -5, .5)))
+gridExtra::grid.arrange(
+  ggplot(posskew) +
+    aes(sample = x) +
+    geom_qq() + geom_qq_line(),
+  ggplot(posskew) +
+    aes(x) +
+    geom_density(colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(posskew$x), sd = sd(posskew$x)), colour = 'tomato2', size = 1) +
+    xlim(0, .025),
+  nrow = 1
+)
+```
+
+---
+
+### Negatively skewed distribution
+
+Some extremely small values; long left tail
+
+```{r negative-skew, echo=FALSE, fig.width = 7, fig.height = 3.5}
+set.seed(1)
+negskew <- data.frame(x = sn::rsn(200, alpha = -10) + 10)
+gridExtra::grid.arrange(
+  ggplot(negskew) +
+    aes(sample = x) +
+    geom_qq() + geom_qq_line(),
+  ggplot(negskew) +
+    aes(x) +
+    geom_density(colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(negskew$x), sd = sd(negskew$x)), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+```
+
+---
+
+### Bimodal distribution
+
+Two peaks (modes): possible mixture of distributions
+
+```{r multimodal, echo=FALSE, fig.width = 7, fig.height = 3.5}
+gridExtra::grid.arrange(
+  ggplot(faithful) +
+    aes(sample = waiting) +
+    geom_qq() + geom_qq_line(),
+  ggplot(faithful) +
+    aes(waiting) +
+    geom_density(colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(faithful$w), sd = sd(faithful$w)), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+```
+
+---
+
+### Leptokurtic (fat tailed)
+
+More extreme values (both large & small) than normal
+
+```{r lepto, echo=FALSE, fig.width = 7, fig.height = 3.5}
+set.seed(2)
+kurt <- data.frame(lepto = rt(200, 2),
+                   platy = sample(5:20, 200, replace = TRUE))
+
+gridExtra::grid.arrange(
+  ggplot(kurt) +
+    aes(sample = lepto) +
+    geom_qq() + geom_qq_line(),
+  ggplot(kurt) +
+    aes(lepto) +
+    geom_density(bw = 2, colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(kurt$l), sd = sd(kurt$l)), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+```
+
+---
+
+### Platykurtic (thin tailed)
+
+Fewer extreme values (both large & small) than normal
+
+```{r platy, echo=FALSE, fig.width = 7, fig.height = 3.5}
+gridExtra::grid.arrange(
+  ggplot(kurt) +
+    aes(sample = platy) +
+    geom_qq() + geom_qq_line(),
+  ggplot(kurt) +
+    aes(platy) +
+    geom_density(bw = 1.75, colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    xlim(0, 25) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(kurt$p), sd = sd(kurt$p)), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+```
+
+---
+
+### Quantile–quantile plots in R
+
+- In base graphics, call `qqnorm` and `qqline`.
+- In **ggplot2**, use `geom_qq` and `geom_qq_line`
+
+```{r, eval = TRUE, out.width = '50%', fig.width = 5, fig.height = 3.25}
+ggplot(htwt) + aes(sample = nursewt) +
+  geom_qq() + geom_qq_line()
+```
+
+---
+
+## Box and whisker plots
+
+Another kind of &lsquo;quantile plot&rsquo;
+
+- Median, upper & lower quartiles
+- Min, max (within 1.5 &times; IQR of median) & outliers
+- Compare skewness between 2+ variables
+- In R: `boxplot` or `ggplot2::geom_boxplot`
+
+```{r boxplot, fig.width = 6, fig.height = 1.5, echo=FALSE}
+ggplot(htwt) +
+  aes(nursewt, sex, fill = sex) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(x = 'measured weight (kg)')
+```
+
+---
+
+## Transforming data
+
+- Symmetrise data via transformation
+- Most common transform: taking logs
+- Others (e.g. $1/x$, $\sqrt{x}$) harder to interpret
+
+```{r log-transform, echo=FALSE, fig.width = 7, fig.height = 3, out.width = '80%'}
+set.seed(1)
+posskew <- data.frame(x = exp(rnorm(250, -5, .5)))
+gridExtra::grid.arrange(
+  ggplot(posskew) +
+    aes(sample = log(x)) +
+    geom_qq() + geom_qq_line(),
+  ggplot(posskew) +
+    aes(log(x)) +
+    geom_density(colour = 'steelblue', size = 1, fill = 'steelblue', alpha = .2) +
+    stat_function(fun = function(x)
+      dnorm(x, mean = mean(log(posskew$x)), sd = sd(log(posskew$x))), colour = 'tomato2', size = 1),
+  nrow = 1
+)
+````
+
+.small[Logarithm of the positively-skewed data from earlier]
+
+---
+
+layout: false
+class: inverse, middle, center
+
+# Further reading
+
+---
+
+layout: true
+background-image: url(cfe-logo.jpg)
+background-position: 97% 97%
+background-size: 70px
+
+---
+
+# Further reading
+
+.small[https://personalpages.manchester.ac.uk/staff/david.selby/analysis/]
+
+- Lecture notes
+- These slides
+- Practical exercises
+
+### Books on data visualisation
+
+**Edward Tufte**, _The Visual Display of Quantitative Information_.
+
+**William Cleveland**, _Visualizing Data_.
+
 
