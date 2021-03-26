@@ -1,0 +1,64 @@
+---
+title: "Bayesian modelling with Stan"
+description: |
+  Introduction to Stan, rstan and brms for multi-level Bayesian regession modelling.
+author:
+  - name: Belay Birlie Yimer
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8621-6539
+date: 2021-03-26
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+rinline <- function(code) {
+  # Print inline R code with backticks without evaluating it
+  sprintf('``` `r %s` ```', code)
+}
+```
+
+## Resources
+
+1. [**View the talk slides**](Bayesian-modelling-with-Stan.html)
+2. [Stan web site](https://mc-stan.org/)
+3. [JAGS](https://mcmc-jags.sourceforge.io/) (Just Another Gibbs Sampler)
+4. [_Statistical Rethinking_](https://xcelab.net/rm/statistical-rethinking/) book by Richard McElreath
+5. Sleep deprivation study
+    - [original paper](https://onlinelibrary.wiley.com/doi/full/10.1046/j.1365-2869.2003.00337.x)
+    - access the dataset in R with `data(sleepstudy, package = 'lme4')`
+6. [**brms**](https://paul-buerkner.github.io/brms/): Bayesian regression modelling with Stan
+
+<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/qV6Wc_f1Cgo" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+### Final linear mixed model
+
+```{r brms-fit, echo = FALSE, results = 'hide', message = FALSE}
+library(brms)
+fit <- brm(Reaction ~ Days + (Days | Subject),
+           data = lme4::sleepstudy, verbose = FALSE,
+           file = 'sleepbrm')
+```
+
+```{r, brms, eval = FALSE, echo = TRUE}
+fit <- brm(Reaction ~ Days + (Days | Subject),
+           data = lme4::sleepstudy)
+```
+
+```{r summary, echo=FALSE}
+fit
+```
+
+```{r traceplots, echo = TRUE}
+plot(fit, N = 3)
+```
+
+```{r pp, echo = TRUE}
+pp_check(fit)
+```
+
+

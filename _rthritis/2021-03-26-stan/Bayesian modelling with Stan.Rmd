@@ -1,0 +1,435 @@
+---
+title: "Bayesian modelling with Stan"
+author: "Belay Birlie"
+date: "24/03/2021"
+output: ioslides_presentation
+widescreen: true
+smaller: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r message = FALSE, warning = FALSE}
+library(ggplot2)
+library(bayesplot)
+library(rstan)
+library(brms)
+#'library(visibly)
+library(tidyverse)
+library(patchwork)
+library(lme4)
+
+```
+## The RAP Guide to Consciousness
+https://www.youtube.com/watch?v=qV6Wc_f1Cgo
+![](https://www.youtube.com/watch?v=qV6Wc_f1Cgo)
+
+## Bayesain Workflow 
+
+- Design your model.
+- Choose priors (Informative? Not? Do you have external data you could turn into a prior?)
+- Sample the posterior distribution.
+- Inspect model convergence (traceplots, rhats, and for Stan no divergent transitions - we will go through these later in the tutorial)
+- Critically assess the model using posterior predictions and checking how they compare to your data!
+- Repeat…
+
+## Stan Ecosystem
+
+<img src="Ecosystem.png" width="800">
+
+
+## Stan Program
+
+- Data block
+    - declare the data types, their dimensions, any restrictions 
+- Parameter block
+    - indicate the parameters you want to model, their dimensions, restrictions, and name
+- Model block
+    - This is where you include any sampling statements, including the “likelihood” (model) you are using. The model block is where you indicate any prior distributions you want to include for your parameters
+    
+## Stan Program
+There are also four optional blocks 
+
+- functions
+
+- transformed data
+
+- transformed parameters
+
+- generated quantities
+
+## Fitting a line to data - IRIS data
+
+```{r, echo=T, out.width="40%"}
+dat<-iris[iris$Species=="setosa",c("Petal.Length", "Sepal.Length")]
+mod <- lm(Petal.Length ~ Sepal.Length, data = dat)
+dat <- transform(dat, Fitted = fitted(mod))
+ggplot(dat, aes(x=Sepal.Length, y=Petal.Length)) + 
+  geom_point(color="red") + geom_smooth(se=FALSE, method = "lm") +
+  geom_segment(aes(x = Sepal.Length, y = Petal.Length,
+                   xend = Sepal.Length, yend = Fitted))
+
+```
+
+## Linear rgression in Stan
+
+```{r, eval = TRUE, echo=T}
+write("// Stan model for simple linear regression
+data {
+ int < lower = 1 > N; // Sample size
+ vector[N] x; // Predictor
+ vector[N] y; // Outcome
+}
+parameters {
+ real alpha; // Intercept
+ real beta; // Slope (regression coefficients)
+ real < lower = 0 > sigma; // Error SD
+}
+model {
+ y ~ normal(alpha + x * beta , sigma);
+}
+generated quantities {
+} // The posterior predictive distribution",
+
+"stan_model1.stan")
+```
+
+
+## Running our Stan model
+
+```{r, eval = TRUE, echo=T}
+stanc("stan_model1.stan")$status# Check if we wrote a file 
+stan_model1 <- "stan_model1.stan" # save the file path 
+stan_data<-list(y=dat$Petal.Length, x=dat$Sepal.Length, N=nrow(dat))#prepare the data 
+fit <- stan(file = stan_model1, data = stan_data, warmup = 500, iter = 1000, chains = 4, cores = 2, thin = 1)#running the model
+```
+
+# Running our Stan model
+
+```{r, eval = TRUE, echo=T}
+print(fit)#basic summary stat
+```
+
+## Posterior exploration - visualize the variability in our estimation of the regression line {.smaller .build }
+```{r, eval = TRUE, echo=T, out.width="50%"}
+posterior <- rstan::extract(fit)
+plot(stan_data$y~ stan_data$x, pch = 20,type="n")
+for (i in 1:500) {
+ abline(posterior$alpha[i], posterior$beta[i], col = "gray", lty = 1)
+}
+abline(mean(posterior$alpha), mean(posterior$beta), col = 6, lw = 2)
+```
+
+## Changing our priors
+```{r, eval = TRUE, echo=T}
+write("// Stan model for simple linear regression
+data {
+ int < lower = 1 > N; // Sample size
+ vector[N] x; // Predictor
+ vector[N] y; // Outcome
+}
+parameters {
+ real alpha; // Intercept
+ real beta; // Slope (regression coefficients)
+ real < lower = 0 > sigma; // Error SD
+}
+model {
+alpha ~ normal(10, 0.1);
+beta ~ normal(1, 0.1);
+ y ~ normal(alpha + x * beta , sigma);
+}
+generated quantities {
+} // The posterior predictive distribution",
+
+"stan_model2.stan")
+stan_model2 <-"stan_model2.stan" # save the file path 
+```
+
+## Convergence Diagnostics-Diagnostic plots
+```{r, eval = TRUE, echo=T, out.width="80%"}
+traceplot(fit)
+```
+
+## Convergence Diagnostics-Diagnostic plots
+```{r, eval = TRUE, echo=T, out.width="80%"}
+stan_dens(fit)
+
+```
+
+## Convergence Diagnostics-Posterior Predictive Checks
+```{r, eval = FALSE, echo=T}
+write("// Stan model for simple linear regression
+data {
+ ...
+}
+parameters {
+ ...
+}
+model {
+ y ~ normal(x * beta + alpha, sigma);
+}
+generated quantities {
+ real y_rep[N];
+ for (n in 1:N) {
+ y_rep[n] = normal_rng(x[n] * beta + alpha, sigma);
+ }
+}","stan_model2_GQ.stan")
+
+```
+
+## Convergence Diagnostics-Posterior Predictive Checks
+```{r, eval = TRUE, echo=F}
+write("// Stan model for simple linear regression
+
+data {
+ int < lower = 1 > N; // Sample size
+ vector[N] x; // Predictor
+ vector[N] y; // Outcome
+}
+parameters {
+ real alpha; // Intercept
+ real beta; // Slope (regression coefficients)
+ real < lower = 0 > sigma; // Error SD
+}
+model {
+ y ~ normal(x * beta + alpha, sigma);
+}
+generated quantities {
+ real y_rep[N];
+ for (n in 1:N) {
+ y_rep[n] = normal_rng(x[n] * beta + alpha, sigma);
+ }
+}","stan_model2_GQ.stan")
+
+```
+
+## Convergence Diagnostics-Posterior Predictive Checks
+```{r, eval = TRUE, echo=T}
+stan_model2_GQ <- "stan_model2_GQ.stan"
+fit3 <- stan(file = stan_model2_GQ, data = stan_data, warmup = 500, iter = 1000, chains = 4, cores = 2, thin = 1)#running the model
+```
+
+## Convergence Diagnostics-Posterior Predictive Checks
+```{r, eval = TRUE, echo=T, out.width="50%"}
+y_rep <- as.matrix(fit3, pars = "y_rep")
+ppc_dens_overlay(stan_data$y, y_rep[1:200, ])
+
+```
+
+## Take me hier(archical) 
+
+```{r, eval = TRUE, echo=T, out.width="50%"}
+str(sleepstudy)
+```
+
+## Take me hier(archical) 
+$$y_{ij} = \beta_0 + u_{0j} + \left( \beta_1 + u_{1j} \right) \cdot {\rm{Days}} + e_i$$
+$$\left[ {\begin{array}{*{20}{c}}
+{{u_0}}\\
+{{u_1}}
+\end{array}} \right] \sim\cal N \left( {\left[ {\begin{array}{*{20}{c}}
+0\\
+0
+\end{array}} \right],\Omega  = \left[ {\begin{array}{*{20}{c}}
+{\sigma _0^2}&{{\mathop{\rm cov}} \left( {{u_0},{u_1}} \right)}\\
+{{\mathop{\rm cov}} \left( {{u_0},{u_1}} \right)}&{\sigma _1^2}
+\end{array}} \right]} \right)$$
+
+
+
+
+
+## Stan mixed effect model
+
+Data block 
+
+```{r, eval = FALSE, echo=T, out.width="50%"}
+data {
+  int<lower=1> N;            //number of observations
+  real RT[N];                //reaction times
+
+  int<lower=0,upper=9> Days[N];   //predictor (days of sleep deprivation)
+
+  // grouping factor
+  int<lower=1> J;                   //number of subjects
+  int<lower=1,upper=J> Subject[N];  //subject id
+}
+
+```
+
+## Stan mixed effect model
+
+Parameter block 
+
+```{r, eval = FALSE, echo=T, out.width="50%"}
+parameters {
+  vector[2] beta;                   // fixed-effects parameters
+  real<lower=0> sigma_e;            // residual std
+  vector<lower=0>[2] sigma_u;       // random effects standard deviations
+  // declare L_u to be the Choleski factor of a 2x2 correlation matrix
+  cholesky_factor_corr[2] L_u;
+  matrix[2,J] z_u;                  // random effect matrix
+}
+transformed parameters {
+  // this transform random effects so that they have the correlation
+  // matrix specified by the correlation matrix above
+  matrix[2,J] u;
+  u = diag_pre_multiply(sigma_u, L_u) * z_u;
+
+}
+
+```
+
+## Stan mixed effect model
+
+Model block 
+```{r, eval = FALSE, echo=T, out.width="50%"}
+model {
+  real mu; // conditional mean of the dependent variable
+  //priors
+  L_u ~ lkj_corr_cholesky(1.5); // LKJ prior for the correlation matrix
+  to_vector(z_u) ~ normal(0,2);
+  sigma_e ~ normal(0, 5);       // prior for residual standard deviation
+  beta[1] ~ normal(0.3, 0.5);   // prior for fixed-effect intercept
+  beta[2] ~ normal(0.2, 2);     // prior for fixed-effect slope
+  //likelihood
+  for (i in 1:N){
+    mu = beta[1] + u[1,Subject[i]] + (beta[2] + u[2,Subject[i]])*Days[i];
+    RT[i] ~ normal(mu, sigma_e);
+  }
+}
+```
+
+## Stan mixed effect model
+
+Generated quantities block 
+
+```{r, eval = FALSE, echo=T, out.width="50%"}
+generated quantities {
+  matrix[2, 2] Omega;
+  Omega = L_u * L_u' ; // so that it return the correlation matrix
+}
+
+```
+
+## Stan mixed effect model- running the model 
+
+Prepare Data 
+
+```{r, eval = TRUE, echo=T, out.width="50%"}
+d_stan <- list(Subject = as.numeric(factor(sleepstudy$Subject, 
+    labels = 1:length(unique(sleepstudy$Subject)))), Days = sleepstudy$Days, 
+    RT = sleepstudy$Reaction/1000, N = nrow(sleepstudy), J = length(unique(sleepstudy$Subject)))
+
+```
+
+## Stan mixed effect model- running the model 
+
+```{r, eval = TRUE, echo=FALSE, out.width="50%"}
+write("// Stan model for simple linear regression
+
+data {
+  int<lower=1> N;            //number of observations
+  real RT[N];                //reaction times
+
+  int<lower=0,upper=9> Days[N];   //predictor (days of sleep deprivation)
+
+  // grouping factor
+  int<lower=1> J;                   //number of subjects
+  int<lower=1,upper=J> Subject[N];  //subject id
+}
+
+parameters {
+  vector[2] beta;                   // fixed-effects parameters
+  real<lower=0> sigma_e;            // residual std
+  vector<lower=0>[2] sigma_u;       // random effects standard deviations
+  // declare L_u to be the Choleski factor of a 2x2 correlation matrix
+  cholesky_factor_corr[2] L_u;
+  matrix[2,J] z_u;                  // random effect matrix
+}
+transformed parameters {
+  // this transform random effects so that they have the correlation
+  // matrix specified by the correlation matrix above
+  matrix[2,J] u;
+  u = diag_pre_multiply(sigma_u, L_u) * z_u;
+
+}
+
+model {
+  real mu; // conditional mean of the dependent variable
+  //priors
+  L_u ~ lkj_corr_cholesky(1.5); // LKJ prior for the correlation matrix
+  to_vector(z_u) ~ normal(0,2);
+  sigma_e ~ normal(0, 5);       // prior for residual standard deviation
+  beta[1] ~ normal(0.3, 0.5);   // prior for fixed-effect intercept
+  beta[2] ~ normal(0.2, 2);     // prior for fixed-effect slope
+  //likelihood
+  for (i in 1:N){
+    mu = beta[1] + u[1,Subject[i]] + (beta[2] + u[2,Subject[i]])*Days[i];
+    RT[i] ~ normal(mu, sigma_e);
+  }
+}
+
+generated quantities {
+  matrix[2, 2] Omega;
+  Omega = L_u * L_u' ; // so that it return the correlation matrix
+}",
+"sleep_model.stan")
+
+```
+
+## Stan mixed effect model- running the model 
+
+```{r, eval = TRUE, echo=TRUE, out.width="50%"}
+sleep_model <- stan(file = "sleep_model.stan", data = d_stan, 
+    iter = 2000, chains = 4)
+```
+
+## Stan mixed effect model- result 
+
+```{r, eval = TRUE, echo=TRUE, out.width="50%"}
+print(sleep_model, pars = c("beta"), probs = c(0.025, 0.975), 
+    digits = 3)
+```
+
+## Stan mixed effect model- result
+
+```{r, eval = TRUE, echo=TRUE, out.width="50%"}
+plot(sleep_model, plotfun = "hist", pars = c("beta", "sigma_u"))
+```
+
+## Stan mixed effcet model- result
+
+```{r, eval = TRUE, echo=TRUE, out.width="50%"}
+print(sleep_model, pars = c("Omega"), digits = 3)
+```
+
+## Stan is complicated- Don't Worry
+
+![](brms.png)
+
+## brms
+
+ - An interface to Rstan 
+ 
+```{r, eval = FALSE, echo=TRUE, out.width="50%"}
+library(brms)
+# fit linear regression
+fit_lm<-brm(y~x,data=dat) 
+#Fit mixed effect model
+fit_lmm<-brm(Reaction~Days+(Days|Subject), data=sleepstudy)
+
+```
+
+## brms
+
+https://cran.r-project.org/web/packages/brms/index.html
+
+```
+
