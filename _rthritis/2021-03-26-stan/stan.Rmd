@@ -24,7 +24,7 @@ rinline <- function(code) {
 
 ## Resources
 
-1. [**View the talk slides**](Bayesian-modelling-with-Stan.html)
+1. [**View the talk slides**](Bayesian-modelling-with-Stan.html) ([source code](Bayesian modelling with Stan.Rmd))
 2. [Stan web site](https://mc-stan.org/)
 3. [JAGS](https://mcmc-jags.sourceforge.io/) (Just Another Gibbs Sampler)
 4. [_Statistical Rethinking_](https://xcelab.net/rm/statistical-rethinking/) book by Richard McElreath
