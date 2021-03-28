@@ -1011,7 +1011,7 @@ ggplot() +
   labs(y = 'normal density')
 ```
 
-Once again we can clearly see the difference in means (in either direction---it's a two-sided test) is well outside the 95% confidence interval, so the total amount of probability mass in the tails (the $p-value$) is vanishingly small:
+Once again we can clearly see the difference in means (in either direction---it's a two-sided test) is well outside the 95% confidence interval, so the total amount of probability mass in the tails (the $p$-value) is vanishingly small:
 
 ```{r}
 pnorm(diff(p_MF), sd = stderror) +
@@ -1021,7 +1021,7 @@ pnorm(diff(p_MF), sd = stderror) +
 But clearly, we could work this out from looking at the confidence interval---knowing the exact amount of probability mass does not add any further insight.
 Meanwhile the confidence interval tells us that if there were no difference in the population, we'd expect the observed variation in our sample to be less than 2.5% in either direction, most (95%) of the time.
 
-## Additional example
+### Additional example
 
 Consider the following $2 \times 2$ contingency tables of exposures and outcomes.
 
