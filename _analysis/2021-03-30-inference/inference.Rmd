@@ -253,7 +253,7 @@ The larger this percentage (confidence level), the wider the interval will be, f
 ```{r confidence-interval, echo=FALSE}
 ggplot(data.frame(lower = qnorm(c(.25, .167, .1, .025, .005)),
                   upper = qnorm(c(.25, .167, .1, .025, .005), lower.tail = FALSE),
-                  label = c('50%', '67%', '80%', '95%', '99%'),
+                  label = c('50%', '68%', '80%', '95%', '99%'),
                   y = dnorm(qnorm(c(.25, .167, .1, .025, .005))))) +
   stat_function(fun = dnorm) +
   scale_x_continuous(limits = c(-3, 3), breaks = -3:3,
