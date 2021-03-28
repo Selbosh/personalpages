@@ -600,6 +600,8 @@ ggplot(X2) +
        y = expression(X^2))
 ```
 
+If the test statistic falls into a part of the $\chi^2$ distribution with very low density, we'd suggest that the probability of observing this change would be unlikely if the null distribution were true.
+
 ## Hypothesis testing and why it's a bad idea
 
 We can never say exactly what a population-level parameter is without measuring the *entire* population.
@@ -619,7 +621,7 @@ For example:
 
 The idea is then to show that the observed data would be so unlikely under such a model, that the null model must be wrong.
 This supposedly lends credence to the idea that, therefore, a proposed _alternative hypothesis_ is a better explanation.
-However, this is a false dichotomy.
+However, this is often a false dichotomy.
 
 1. Make two bad explanations
 2. Show first bad explanation is bad
@@ -627,10 +629,12 @@ However, this is a false dichotomy.
 4. Therefore, second bad explanation must be better
 5. Profit
 
-Nobody _seriously_ expects these hypotheses to be exactly true in the first place: they are [straw men](https://warwick.ac.uk/fac/sci/statistics/crism/workshops/hypothesistesting/gelman.pdf).
+Nobody _seriously_ expects these hypotheses to be _exactly_ true in the first place: they are [straw men](https://warwick.ac.uk/fac/sci/statistics/crism/workshops/hypothesistesting/gelman.pdf).
 We already know that [**all models are wrong**](https://en.wikipedia.org/wiki/All_models_are_wrong); the goal should be to think about how to improve a model, rather than simply 'rejecting' it.
 
-Nonetheless, null hypothesis significance testing is rampant in the literature, so you should understand it when you see it.
+This criticism is most commonly levelled in the social sciences; Meehl ([1997](http://meehl.umn.edu/sites/meehl.dl.umn.edu/files/169problemisepistemology.pdf)) argues that in a _technological_ rather than _theoretical_ context (e.g. simply evaluating the effect of a drug on a specific outcome measure) then null hypothesis significance testing may be more appropriate, but less for explaining more open-ended phenomena such as behaviour, where variables are less clearly defined.
+
+Nonetheless, null hypothesis significance testing is common in the literature, so you should understand it when you see it.
 
 ### The alternative hypothesis
 
@@ -823,8 +827,8 @@ Using the formulae above, we can calculate the test statistic (the difference in
 
 ```{r}
 n <- rowSums(xtab)
-p_MF <- xtab[, 'yes'] / rowSums(xtab)
-p <- sum(xtab[, 'yes']) / sum(xtab)
+p_MF <- xtab[, 'yes'] / n
+p <- sum(xtab[, 'yes']) / sum(n)
 stderror <- sqrt(p * (1 - p) * (1 / n[1] + 1 / n[2]))
 qnorm(c(.025, .975), mean = diff(p_MF), sd = stderror)
 ```
@@ -891,6 +895,11 @@ Because this area (probability mass) is less than 2.5%, we reject the null hypot
 The confidence interval gives us the same information; all the $p$-value tells us is how far into the critical region the test statistic lies (which you could see anyway by comparing the statistic with the boundaries of the confidence interval).
 It's therefore arguable that the $p$-value imparts no useful information that isn't already provided by the confidence interval.
 
+> Significance tests are appropriate in technological contexts, such as evaluating the efficacy of interventions, but setting up confidence intervals is preferable.
+In scientific communication, authors should always present confidence intervals, so that readers who prefer them will have the information they desire without depriving the significance testers of what they want to know.
+>
+> Meehl (1997)
+
 Here is another example.
 Suppose we observe $\bar x = 2.8$ with $s = 3.56$ and $n = 25$.
 Clearly, this value falls inside the confidence interval, so we would not reject the null hypothesis.
@@ -920,27 +929,151 @@ ggplot() +
            vjust = -1, hjust = 1.3, size = 6)
 ```
 
-### Hypothesis tests and confidence intervals
+### Proportions and $p$-values
 
-_Coming soon_
+Let's look at the back pain data, again.
 
 ```{r}
-tab1 <- as.table(rbind(c(6, 6), c(2, 5)))
-tab2 <- as.table(rbind(c(600, 731), c(200, 269)))
+xtab
+```
+
+To derive the $\chi^2$ test result given by `prop.test` or `chisq.test`, we calculate the $X^2$ statistic manually and compare it with the quantiles of the $\chi_1^2$ distribution.
+
+```{r, echo = -c(2, 4)}
+expected <- as.table(rowSums(xtab) %*% t(colSums(xtab) / sum(xtab)))
+expected
+Xsq <- sum((xtab - expected)^2 / expected)
+Xsq
+```
+
+Or with [Yate's correction for continuity](https://en.wikipedia.org/wiki/Yates%27s_correction_for_continuity),
+
+```{r, echo = -2}
+Xsq_Yates <- sum((abs(xtab - expected) - 0.5)^2 / expected)
+Xsq_Yates
+```
+
+Then we compare this with the theoretical $\chi_1^2$ distribution to get the $p$-value (or, equivalently, just see that it falls outside the confidence interval for the test statistic).
+
+```{r}
+qchisq(c(.025, .975), df = 1) # conf. interval does not contain 30
+pchisq(Xsq_Yates, df = 1, lower.tail = FALSE)
+```
+
+Graphically, we can see the $\chi_1^2$ distribution (which is very heavily skewed: even on this truncated graphic) has a 95% confidence interval that ends at about 5, so the test statistic falls well outside it.
+The amount of probability mass to the right of the test statistic (marked by the red line), i.e. the $p$-value, is trivially small.
+
+```{r chisq-p-value, echo = FALSE}
+library(ggrepel)
+ggplot() +
+  # Confidence interval
+  stat_function(fun = dchisq, args = list(df = 1), n = 500,
+                geom = 'area', fill = 'steelblue2',
+                xlim = qchisq(c(.025, .975), df = 1)) + 
+  geom_vline(xintercept = qchisq(.975, 1), colour = 'steelblue2',
+             linetype = 'dashed') +
+  annotate('text', x = 2.5, y = .5, label = '95%\nC.I.',
+           colour = 'steelblue2', size = 5) +
+  # P-value
+  stat_function(fun = dchisq, args = list(df = 1), n = 500,
+                geom = 'area', fill = 'tomato2',
+                xlim = c(Xsq_Yates, 35)) +
+  geom_vline(xintercept = Xsq_Yates, colour = 'tomato2',
+             linetype = 'dashed') +
+  annotate('text', x = 30, y = .5, label = 'p-value', hjust = -.02,
+           colour = 'tomato2', size = 4) +
+  annotate('segment', colour = 'tomato2',
+           arrow = arrow(type = 'closed', length = unit(.05, 'in')),
+           x = 31, y = .4, xend = 30.5, yend = 0.05) +
+  # Chi^2 density curve
+  stat_function(fun = dchisq, args = list(df = 1), n = 500) +
+  scale_x_continuous(expression(X^2), limits = c(0, 33)) +
+  scale_y_continuous(expression(chi[1]^2~'density'), limits = c(0, 2))
+```
+
+Equivalently, let's look at the confidence interval for the difference in proportions (we centre it at zero and then see if the observed difference, positive or negative, is within the region. It would be equivalent to centre the interval at the observed difference and see if the resulting confidence interval contained zero).
+
+```{r prop-test, echo=FALSE}
+ggplot() +
+  stat_function(fun = dnorm, args = list(sd = stderror),
+                geom = 'area', fill = 'steelblue2',
+                xlim = qnorm(c(.025, .975), sd = stderror)) +
+  stat_function(fun = dnorm, args = list(sd = stderror)) +
+  annotate('text', colour = 'white', x = 0, y = 0, vjust = -1,
+           label = '95% C.I.', size = 8,
+           family = 'Roboto Condensed') +
+  geom_vline(xintercept = c(-1, +1) * diff(p_MF), colour = 'tomato2',
+             linetype = 'dashed') +
+  scale_x_continuous('difference in proportions',
+                     breaks = seq(-.05, .05, by = .025),
+                     labels = scales::percent_format(),
+                     limits = c(-.075, .075)) +
+  labs(y = 'normal density')
+```
+
+Once again we can clearly see the difference in means (in either direction---it's a two-sided test) is well outside the 95% confidence interval, so the total amount of probability mass in the tails (the $p-value$) is vanishingly small:
+
+```{r}
+pnorm(diff(p_MF), sd = stderror) +
+  pnorm(-diff(p_MF), sd = stderror, lower.tail = FALSE)
+```
+
+But clearly, we could work this out from looking at the confidence interval---knowing the exact amount of probability mass does not add any further insight.
+Meanwhile the confidence interval tells us that if there were no difference in the population, we'd expect the observed variation in our sample to be less than 2.5% in either direction, most (95%) of the time.
+
+## Additional example
+
+Consider the following $2 \times 2$ contingency tables of exposures and outcomes.
+
+```{r}
+tab1 <- as.table(rbind(c(5, 2), c(6, 6)))
+tab2 <- as.table(rbind(c(269, 200), c(731, 600)))
 dimnames(tab1) <- dimnames(tab2) <-
-  list(outcome = c('no', 'yes'),
-       exposed = c('no', 'yes'))
+  list(outcome = c('yes', 'no'),
+       exposed = c('yes', 'no'))
 
 tab1
 tab2
-
-# Odds ratio
-tab1[1, 1] / tab1[1, 2] * tab1[2, 2] / tab1[2, 1]
-chisq.test(tab1)
-
-tab2[1, 1] / tab2[1, 2] * tab2[2, 2] / tab2[2, 1]
-chisq.test(tab2)
 ```
+
+Assuming these samples are representative of the respective target populations, is _exposure_ associated with an increased incidence of _outcomes_?
+
+#### Example 1
+
+In the first table, the counts are very small, so a $\chi^2$ approximation would not be appropriate.
+Instead of a Pearson $\chi^2$ test or a normal approximation, we can try Fisher's exact test.
+
+```{r}
+fisher.test(tab1)
+```
+
+The 95% confidence interval for the odds ratio contains 1, so we do not reject the null hypothesis (that the proportion of outcomes is no difference between exposed and unexposed subjects).
+The $p$-value is greater than 0.05.
+
+#### Example 2
+
+In the second contingency table, the counts are larger, so both the exact test and the $\chi^2$ approximation are now appropriate.
+
+````{r}
+fisher.test(tab2)
+prop.test(tab2)
+```
+
+Confirming, the odds ratio is
+
+```{r}
+tab2[1, 1] / tab2[1, 2] * tab2[2, 2] / tab2[2, 1]
+```
+
+And we conclude that, because the 95% confidence interval for the odds contains 1 (or, in the case of `prop.test`, the 95% confidence interval for the difference in proportions contains 0), we do not reject the null hypothesis that outcomes are no more likely in the exposed group than in the unexposed group: the confidence interval is between 0.88 and 1.4 (proportional difference -3% to +8%) which includes the possibility of no difference.
+The $p$-value is around 0.39, which is greater than 0.05.
+
+### Odds ratios in R
+
+Rather than doing standalone tests, it's better in R to fit a (generalized) linear model and interpret the output.
+For a logistic regression model, the parameter estimates are given as log-odds, which you can convert to odds using the `exp` function.
+You can extract confidence intervals using `confint`.
+The `Intercept` is the baseline log-odds of the outcome, before accounting for exposure.
 
 ```{r}
 df <- data.frame(
@@ -954,6 +1087,14 @@ log_odds <- coef(model)
 exp(confint(model))
 ```
 
+As you can see, we retrive the same 95% confidence interval for the odds ratio as with `fisher.test`.
+
+Turn log-odds into probabilities with `plogis` (the inverse logit function) to verify the confidence interval for the difference is about -3% to +8% (as in the output from `prop.test`).
+
+```{r}
+plogis(confint(model))
+```
+
 ## Practical exercises
 
 All practical exercises are lifted from lecture 3 of the Statistical Modelling with Stata course.
@@ -965,5 +1106,7 @@ I may write some new ones here, later.
 ## Further reading
 
 Robert P. Abelson (1995). _Statistics as Principled Argument_. https://doi.org/10.4324/9781410601155
+
+Paul E. Meehl (1997). The problem is epistemology, not statistics: Replace significance tests by confidence intervals and quantify accuracy of risky numerical predictions. In L. L. Harlow, S. A. Mulaik, & J. H. Steiger (Eds.), _What If There Were No Significance Tests?_ pp. 393--425. http://meehl.umn.edu/sites/meehl.dl.umn.edu/files/169problemisepistemology.pdf
 
 Andrew Gelman et al. (1995--2020). _Bayesian Data Analysis_. http://www.stat.columbia.edu/~gelman/book/
