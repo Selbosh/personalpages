@@ -762,7 +762,7 @@ We can either
 - assume they do not have the same standard deviation.
 
 In the latter, more general case, the estimated standard error for $\bar y = \bar x$ is
-\[\text{se}(\bar x = \bar y) = \sqrt{\frac{s_y^2}{n_y} + \frac{s_x^2}{n_x}}.\]
+\[\text{se}(\bar x - \bar y) = \sqrt{\frac{s_y^2}{n_y} + \frac{s_x^2}{n_x}}.\]
 
 Hence, we can draw a confidence interval around our statistic to see if the difference in sample means is within the range we'd expect from a population with true common mean.
 
@@ -790,7 +790,7 @@ htwt %>%
             upper = diff(mean) + qt(.975, sum(n) - 2) * stderror)
 
 # Method 2
-with(htwt, t.test(nurseht[sex == 'male'], nurseht[sex == 'female']))
+with(htwt, t.test(nurseht ~ sex))
 
 # Method 3
 confint(lm(nurseht ~ sex, data = htwt))
@@ -861,32 +861,39 @@ The _critical value_ is the boundary that defines the region: typically the 2.5^
 ### Digits and $p$-values
 
 Let's demonstrate this graphically, using example of the uniformly-sampled digits data, and the null hypothesis that $\mu_0 = 3.0$.
-Under the null hypothesis, the sampling distribution of the sample mean is given below, with the 95% confidence interval shaded in blue.
+Under the null hypothesis, the sampling distribution of the sample mean is given below, the 5% *critical region* shaded in pink.
+Think of this as the complement of a confidence interval: if the sample mean falls inside the critical region (equivalently: the null mean falls outside the confidence interval around the observed mean) then we would reject the null hypothesis.
 
 Suppose we observe a sample mean of $\bar x = 4.64$ with $s = 3.04$ and sample size $n = 25$.
 The sample mean is marked with the vertical red line.
-We can already see it falls outside the confidence interval, so an observation like this would cause us to reject the null hypothesis.
+We can already see it falls outside the confidence interval (the same as the $\mu_0=3$ falling outside a confidence interval around the sample mean), so an observation like this would cause us to reject the null hypothesis.
 
 ```{r pvalue1, echo=FALSE}
 pval <- pt((4.64 - 3) / 3.04 * 5, 24, lower.tail = F)
 
 ggplot() +
   stat_function(fun = function(x) dt((x - 3) / 3.04 * 5, 24),
-                xlim = qt(c(.025, .975), 24) * 3.04 / 5 + 3,
-                geom = 'area', fill = 'steelblue2', alpha = .5) +
+                xlim = c(qt(.975, 24) * 3.04 / 5 + 3, 6),
+                geom = 'area', fill = 'tomato', alpha = .25) +
   stat_function(fun = function(x) dt((x - 3) / 3.04 * 5, 24),
-                xlim = c(4.64, 10),
-                geom = 'area', fill = 'tomato2') +
+                xlim = c(0, qt(.025, 24) * 3.04 / 5 + 3),
+                geom = 'area', fill = 'tomato', alpha = .25) +
+  # stat_function(fun = function(x) dt((x - 3) / 3.04 * 5, 24),
+  #               xlim = qt(c(.025, .975), 24) * 3.04 / 5 + 3,
+  #               geom = 'area', fill = 'steelblue2', alpha = .5) +
+  stat_function(fun = function(x) dt((x - 3) / 3.04 * 5, 24),
+                xlim = c(4.64, 6),
+                geom = 'area', fill = 'tomato') +
   stat_function(fun = function(x) dt((x - 3) / 3.04 * 5, 24)) +
   scale_x_continuous(NULL,
                      limits = c(1, 5),
                      breaks = c(0, 2, 3, 4, 6, 4.64),
                      labels = c(0, 2, expression(mu[0]), 4, 6, expression(bar(x)))) +
   geom_vline(xintercept = 3, linetype = 'dashed') +
-  geom_vline(xintercept = 4.64, colour = 'tomato2') +
+  geom_vline(xintercept = 4.64, colour = 'tomato') +
   ylab('density') +
   annotate('text', label = bquote(p == .(signif(pval, 1))),
-           x = 4.64, y = 0, colour = 'tomato2',
+           x = 4.64, y = 0, colour = 'tomato',
            vjust = -1, hjust = -0.1)
 ```
 
@@ -911,18 +918,24 @@ pval <- pt((2.8 - 3) / 3.56 * 5, 24, lower.tail = T)
 
 ggplot() +
   stat_function(fun = function(x) dt((x - 3) / 3.56 * 5, 24),
-                xlim = qt(c(.025, .975), 24) * 3.56 / 5 + 3,
-                geom = 'area', fill = 'steelblue2', alpha = .5) +
+                xlim = c(qt(.975, 24) * 3.56 / 5 + 3, 6),
+                geom = 'area', fill = 'tomato', alpha = .25) +
   stat_function(fun = function(x) dt((x - 3) / 3.56 * 5, 24),
-                xlim = c(-10, 2.8),
-                geom = 'area', fill = 'tomato2') +
+                xlim = c(0, qt(.025, 24) * 3.56 / 5 + 3),
+                geom = 'area', fill = 'tomato', alpha = .25) +
+  # stat_function(fun = function(x) dt((x - 3) / 3.56 * 5, 24),
+  #               xlim = qt(c(.025, .975), 24) * 3.56 / 5 + 3,
+  #               geom = 'area', fill = 'steelblue2', alpha = .5) +
+  stat_function(fun = function(x) dt((x - 3) / 3.56 * 5, 24),
+                xlim = c(0, 2.8),
+                geom = 'area', fill = 'tomato') +
   stat_function(fun = function(x) dt((x - 3) / 3.56 * 5, 24)) +
   scale_x_continuous(NULL,
                      limits = c(1, 5),
                      breaks = c(0, 2, 3, 4, 6, 2.8),
                      labels = c(0, 2, expression(mu[0]), 4, 6, expression(bar(x)))) +
   geom_vline(xintercept = 3, linetype = 'dashed') +
-  geom_vline(xintercept = 2.8, colour = 'tomato2') +
+  geom_vline(xintercept = 2.8, colour = 'tomato') +
   ylab('density') +
   annotate('text', label = bquote(p == .(signif(pval, 2))),
            x = 2.8, y = 0, colour = 'white',
@@ -1026,8 +1039,8 @@ Meanwhile the confidence interval tells us that if there were no difference in t
 Consider the following $2 \times 2$ contingency tables of exposures and outcomes.
 
 ```{r}
-tab1 <- as.table(rbind(c(5, 2), c(6, 6)))
-tab2 <- as.table(rbind(c(269, 200), c(731, 600)))
+tab1 <- as.table(rbind(c(20, 11), c(6, 6)))
+tab2 <- as.table(rbind(c(269, 205), c(731, 600)))
 dimnames(tab1) <- dimnames(tab2) <-
   list(outcome = c('yes', 'no'),
        exposed = c('yes', 'no'))
@@ -1048,7 +1061,9 @@ fisher.test(tab1)
 ```
 
 The 95% confidence interval for the odds ratio contains 1, so we do not reject the null hypothesis (that the proportion of outcomes is no difference between exposed and unexposed subjects).
-The $p$-value is greater than 0.05.
+The $p$-value is about 0.5.
+
+(Note: `fisher.test` uses a [different method](https://stats.stackexchange.com/questions/54530/why-do-odds-ratios-from-formula-and-rs-fisher-test-differ-which-one-should-one) for estimating the odds ratio to the sample odds.)
 
 #### Example 2
 
@@ -1066,7 +1081,9 @@ tab2[1, 1] / tab2[1, 2] * tab2[2, 2] / tab2[2, 1]
 ```
 
 And we conclude that, because the 95% confidence interval for the odds contains 1 (or, in the case of `prop.test`, the 95% confidence interval for the difference in proportions contains 0), we do not reject the null hypothesis that outcomes are no more likely in the exposed group than in the unexposed group: the confidence interval is between 0.88 and 1.4 (proportional difference -3% to +8%) which includes the possibility of no difference.
-The $p$-value is around 0.39, which is greater than 0.05.
+The $p$-value is around 0.5 again.
+
+Notice that despite the two datasets provide very similar $p$-values, despite vastly different confidence intervals.
 
 ### Odds ratios in R
 
@@ -1110,3 +1127,5 @@ Robert P. Abelson (1995). _Statistics as Principled Argument_. https://doi.org/1
 Paul E. Meehl (1997). The problem is epistemology, not statistics: Replace significance tests by confidence intervals and quantify accuracy of risky numerical predictions. In L. L. Harlow, S. A. Mulaik, & J. H. Steiger (Eds.), _What If There Were No Significance Tests?_ pp. 393--425. http://meehl.umn.edu/sites/meehl.dl.umn.edu/files/169problemisepistemology.pdf
 
 Andrew Gelman et al. (1995--2020). _Bayesian Data Analysis_. http://www.stat.columbia.edu/~gelman/book/
+
+David Trafimow et al. (2018). Manipulating the alpha level cannot cure significance testing. _Frontiers in Psychology_. https://doi.org/10.3389/fpsyg.2018.00699

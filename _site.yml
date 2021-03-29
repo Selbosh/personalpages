@@ -15,7 +15,7 @@ navbar:
       href: rthritis.html
     - text: "Stata Course"
       href: stata.html
-    - text: "Analytical Epidemiology"
+    - text: "Intro to Epi"
       href: analysis.html
     - icon: fab fa-github
       href: https://github.com/Selbosh
