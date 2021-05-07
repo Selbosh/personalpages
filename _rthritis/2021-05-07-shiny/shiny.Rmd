@@ -1,0 +1,40 @@
+---
+title: "Introduction to Shiny"
+description: |
+  Shiny is a tool for creating interactive dashboards and web apps from R.
+author:
+  - name: Yuanyuan Zhang
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+date: 05-07-2021
+output:
+  distill::distill_article:
+    self_contained: false
+preview: https://shiny.rstudio.com/images/shinySiteBandOne.png
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+In this meeting, Yuanyuan Zhang (Data Scientist, CfE) provided an introduction to Shiny, a tool for creating interactive dashboards and web apps from R.
+
+## Resources
+
+1. [Talk slides](resources/R shiny_v1.pptx) <i class="fas fa-file-powerpoint" title=".pptx"></i>
+1. [Example Shiny script](resources/R_shiny_presentation.R) <i class="fab fa-r-project" title=".Rmd"></i>
+
+### Further information
+
+1. [Official Shiny web site](https://shiny.rstudio.com/)
+1. [shinyapps.io](https://www.shinyapps.io/) (hosting service for apps)
+
+### Example Shiny web apps
+
+1. [Cran popular packages dashboard](https://gallery.shinyapps.io/087-crandash/)
+2. [Covid-19 tracker](https://vac-lshtm.shinyapps.io/ncov_tracker/)
+3. [Simple linear regression tutorial](https://antoinesoetewey.shinyapps.io/statistics-202/)
+4. [Shiny Decisions game](https://sparktuga.shinyapps.io/ShinyDecisions/?_ga=2.2819120.1289489377.1620129325-21034900.1616759223)
+5. [Speedy Shiny Shortlister](https://github.com/Selbosh/shinyshortlist)
+
