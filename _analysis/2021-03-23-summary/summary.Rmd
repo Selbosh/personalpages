@@ -236,7 +236,8 @@ It's also an effective way of emphasising the impact that events have on individ
 Use `ggplot2::geom_dotplot` or the package **waffle** to produce such charts.
 
 ```{r waffle, fig.width = 7, fig.height = 5, dev.args = list(type = 'cairo')}
-remotes::install_github('hrbrmstr/waffle')
+if (!require(waffle))
+  remotes::install_gitlab('hrbrmstr/waffle')
 
 library(waffle)
 ggplot(as.data.frame(Titanic)) +
