@@ -1,0 +1,352 @@
+---
+title: Advent of Code 2021
+subtitle: Joint discussion
+author: "David Selby & Heather Turner"
+institute: "R-thritis & Warwick RUG"
+date: "3 December 2021"
+output:
+  xaringan::moon_reader:
+    df_print: tibble
+    css: rth.css
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+class: center, middle, inverse
+
+```{r setup, include = FALSE}
+options(htmltools.dir.version = FALSE )
+knitr::opts_chunk$set(comment = '#', message = FALSE)
+```
+
+```{r xaringan-logo, echo=FALSE}
+if (!require(xaringanExtra)) remotes::install_github('gadenbuie/xaringanExtra')
+xaringanExtra::use_logo(
+  image_url = 'https://www.cfe.manchester.ac.uk/media/mhs/bmh-faculty/images/CfE-logo-150px.jpg',
+  width = '67px', height = '50px',
+  position = xaringanExtra::css_position(bottom = '.3em', left = '0.3em')
+)
+```
+
+# Day 1: Sonar Sweep
+
+<https://adventofcode.com/2021/day/1>
+
+---
+
+## Day 1 - Part 1
+
+How many measurements are larger than the previous measurement?
+
+```
+199  (N/A - no previous measurement)
+200  (increased)
+208  (increased)
+210  (increased)
+200  (decreased)
+207  (increased)
+240  (increased)
+269  (increased)
+260  (decreased)
+263  (increased)
+```
+
+---
+
+## Day 1 - Part 2
+
+How many **sliding three-measurement sums** are larger than the previous sum?
+
+```
+199  A           607  (N/A - no previous sum)
+200  A B         618  (increased)
+208  A B C       618  (no change)
+210    B C D     617  (decreased)
+200  E   C D     647  (increased)
+207  E F   D     716  (increased)
+240  E F G       769  (increased)
+269    F G H     792  (increased)
+260      G H
+263        H
+```
+
+---
+
+class: center, middle
+
+## Day 1 - Solutions
+
+---
+
+
+### Day 1: How to make life harder for yourself
+
+By Claire Little
+.pull-right[.red[10,000 μs]]
+
+```r
+library(tidyverse)
+# Part 1:
+input %>% mutate(change = V1 - lag(V1),
+                 sign = change / abs(change)) %>%
+  group_by(sign) %>%
+  summarise(n = n())
+
+# Part 2:
+input %>% mutate(window = V1 + lag(V1) + lag(V1, 2),
+                 change = window - lag(window),
+                 sign = change / abs(change)) %>%
+  group_by(sign) %>%
+  summarise(n = n())
+```
+
+???
+
+Day 1 was well easy but I clearly need to get better at "I wonder if there's a function for that" rather than trying to bosh something together i.e. `change/abs(change)`
+
+Would have tried to do it without tidyverse if I had more time but it was just calling out for some tidyverseness
+
+---
+
+### Day 1: base R using `diff()`
+
+By David Selby
+.pull-right[.red[~100 μs]]
+
+```r
+increases <- function(depths) {
+  sum(diff(depths) > 0)
+}
+  
+rolling_sum <- function(depths) {
+  head(depths, -2) + tail(depths, -2) +
+    head(tail(depths, -1), -1)
+}
+  
+input1 <- scan('input01.txt')
+increases(input1)
+increases(rolling_sum(input1))
+```
+
+.footnote[Or you could use `zoo::rollsum(depths, 3)`]
+
+???
+
+100 μs is around 100 times faster than 10 ms (= 10,000 μs)
+
+---
+
+### Day 1: one-liner using `diff(lag = n)`
+
+By David Schoch
+.pull-right[.red[~100 μs]]
+
+```r
+sapply(c(1, 3), function(n) sum(diff(input1, lag = n) > 0))
+```
+
+--
+
+Or with R's new anonymous function `\(x)` syntax:
+
+```r
+sapply(c(1, 3), \(n) sum(diff(input1, n) > 0))
+```
+
+???
+
+100 μs is around 100 times faster than 10 ms (= 10,000 μs)
+
+Worth pointing out that you can't attempt part 2 until you've completed and submitted part 1, so nobody is going to have a one-liner as their first solution!
+
+---
+
+class: center, middle, inverse
+
+# Day 2: Dive!
+
+<https://adventofcode.com/2021/day/2>
+
+---
+
+## Day 2 - Part 1
+
+- `forward X` increases the horizontal position by `X` units.
+- `down X` increases the depth by `X` units.
+- `up X` decreases the depth by `X` units.
+
+```
+                  x  depth
+forward 5   -->   5      -
+down 5      -->          5
+forward 8   -->  13
+up 3        -->          2
+down 8      -->         10
+forward 2   -->  15
+
+==> x = 15, depth = 10
+```
+
+---
+
+## Day 2 - Part 2
+
+- `down X` increases your aim by `X` units.
+- `up X` decreases your aim by `X` units.
+- `forward X` does two things:
+    - It increases your horizontal position by `X` units.
+    - It increases your depth by your aim **multiplied by** `X`.
+    
+```
+                  x  aim  depth
+forward 5   -->   5    -      - 
+down 5      -->        5      
+forward 8   -->  13          40
+up 3        -->        2
+down 8      -->       10
+forward 2   -->  15          60
+
+==> x = 15, depth = 60
+```
+
+---
+
+class: center, middle
+
+## Day 2 - Solutions
+
+---
+
+### Day 2: I don't care if loops are inefficient
+
+By Claire Little
+.pull-right[.red[60,000 μs]]
+
+```r
+inst = read.table("path/to/Day2.csv")
+ninst = dim(inst)[1]
+
+# Day 2 - Part 1
+position = c(0, 0)
+
+for (i in 1:ninst) {
+  if (inst[i, 1] == 'forward') {
+    position = position + c(inst[i, 2], 0)
+  } else if (inst[i, 1] == 'down') {
+    position = position + c(0, inst[i, 2])
+  } else {
+    position = position - c(0, inst[i, 2])
+  }
+}
+  
+answer1 = position[1] * position[2]
+```
+
+???
+
+Day 2 - I forgot how many loops & if statements I used last year and I liked using them but also appreciate it wouldn't have worked very well with bigger datasets. But it was efficient enough for what we needed
+
+---
+
+### Day 2: I don't care if loops are inefficient
+
+By Claire Little
+.pull-right[.red[60,000 μs]]
+
+```r
+# Day 2 - Part 2
+position = c(0, 0, 0)
+
+for (i in 1:ninst) {
+  if (inst[i, 1] == 'forward') {
+    position = position + c(inst[i, 2], 0, 0)
+    position = position + c(0, (inst[i, 2] * position[3]), 0)
+  } else if (inst[i, 1] == 'down') {
+    position = position + c(0, 0, inst[i, 2])
+  } else {
+    position = position - c(0, 0, inst[i, 2])
+  }
+}
+
+answer2 = position[1] * position[2]
+```
+
+???
+
+Day 2 - I forgot how many loops & if statements I used last year and I liked using them but also appreciate it wouldn't have worked very well with bigger datasets. But it was efficient enough for what we needed
+
+---
+
+### Day 2: no ifs, no loops
+
+By David Selby
+.pull-right[.red[100 μs]]
+
+```r
+course <- read.table('input.txt', col.names = c('dir', 'value'))
+
+with(course, {
+  x <- (dir == 'forward') * value
+  y <- ((dir == 'down') - (dir == 'up')) * value
+  sum(x) * sum(y)
+})
+```
+
+```r
+with(course, {
+  x <- (dir == 'forward') * value
+  y <- ((dir == 'down') - (dir == 'up')) * value
+  depth <- cumsum(y) * x
+  sum(x) * sum(depth)
+})
+```
+
+???
+
+100 μs is around **600 times faster** than 60 ms (= 60,000 μs)
+
+---
+
+### Day 2: tidyverse-style
+
+By David Selby
+.pull-right[.red[3000 μs]]
+
+```r
+course %>%
+  mutate(x = if_else(dir == 'forward', value, 0L),
+         y = if_else(dir == 'down', value, -value) * !x,
+       depth = cumsum(y) * x) %>%
+  summarise(part1 = sum(x) * sum(y),
+            part2 = sum(x) * sum(depth))
+```
+
+???
+
+At 3 ms (= 3000 μs), this tidyverse solution is around 30 times slower than the base R (100 μs), but 20 times faster than loops (60,000 μs / 60 ms)
+
+---
+
+layout: false
+class: center, middle
+
+# Thanks!
+
+`david.selby@manchester.ac.uk`
+
+.small[For these slides: search `"rthritis" manchester`]
+
+---
+
+class: center, middle
+
+## Next meeting
+
+Friday 14 January 2022
+
+.big[Writing your own R package]
+
+_To be confirmed_
