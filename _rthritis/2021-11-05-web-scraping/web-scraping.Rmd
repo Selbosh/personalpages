@@ -12,6 +12,7 @@ date: 2021-11-05
 output:
   distill::distill_article:
     self_contained: false
+preview: https://raw.githubusercontent.com/tidyverse/rvest/main/man/figures/logo.png
 twitter:
   site: '@CfEUoM'
   creator: '@TeaStats'

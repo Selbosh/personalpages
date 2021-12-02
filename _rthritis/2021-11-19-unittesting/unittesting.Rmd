@@ -12,6 +12,10 @@ date: 2021-11-19
 output:
   distill::distill_article:
     self_contained: false
+preview: https://community.rstudio.com/uploads/default/original/3X/6/f/6ff6016cd737d659e146b935ab4bf6cf62a88f9d.jpeg
+twitter:
+  site: '@CfEUoM'
+  creator: '@TeaStats'
 ---
 
 
