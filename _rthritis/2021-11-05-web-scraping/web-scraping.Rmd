@@ -1,0 +1,33 @@
+---
+title: "Web scraping for drug safety"
+description: |
+  Introduction to web scraping and how it can be used to gather online data for research.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-11-05
+output:
+  distill::distill_article:
+    self_contained: false
+twitter:
+  site: '@CfEUoM'
+  creator: '@TeaStats'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Resources
+
+- R package [**rvest**](https://rvest.tidyverse.org/index.html)
+- [Talk slides](resources/webscraping.pdf) <i class="fas fa-file-pdf" title="PDF"></i>
+    - [Source code](resources/webscraping.Rmd) <i class="fab fa-r-project" title=".Rmd"></i>
+
+```{r}
+knitr::include_url('resources/webscraping.html')
+```

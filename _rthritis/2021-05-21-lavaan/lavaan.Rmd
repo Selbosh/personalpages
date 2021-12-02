@@ -1,0 +1,35 @@
+---
+title: "Structural equation modelling with lavaan"
+description: |
+  Confirmatory factor analysis, path analysis and structural equation models in R.
+author:
+  - name: James Gwinnutt
+    url: https://www.research.manchester.ac.uk/portal/james.gwinnutt.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0002-1435-8797
+date: 2021-05-21
+output:
+  distill::distill_article:
+    self_contained: false
+preview: https://www.lavaan.ugent.be/tutorial/figure/sem.png
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+In this meeting, James Gwinnutt offers an overview of path analysis, confirmatory factor analysis and structural equation modelling in **lavaan**.
+
+## Resources
+
+1. [Talk slides](resources/lavaan presentation.pptx) <i class="fas fa-file-powerpoint" title=".pptx"></i>
+1. [Tutorial script](resources/lavaan tutorial.R) <i class="fab fa-r-project" title=".R"></i>
+
+### Further information
+
+1. [Official lavaan web site](https://www.lavaan.ugent.be/)
+1. [Confirmatory factor analysis in R](https://stats.idre.ucla.edu/r/seminars/rcfa/)
+1. [Structural equation modelling in R](https://stats.idre.ucla.edu/r/seminars/rsem)
+1. [Exploratory factor analysis](https://cran.r-project.org/web/packages/psychTools/vignettes/factor.pdf)

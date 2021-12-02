@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Web scraping for drug safety</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="David A. Selby" />
+    <script src="libs/header-attrs/header-attrs.js"></script>
+    <link rel="stylesheet" href="rth.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Web scraping for drug safety
+## R-thritis Computing Group
+### David A. Selby
+### 5<sup>th</sup> November 2021
+
+---
+
+
+class: inverse, middle
+
+
+
+<div>
+<style type="text/css">.xaringan-extra-logo {
+width: 100px;
+height: 75px;
+z-index: 0;
+background-image: url(https://www.cfe.manchester.ac.uk/media/mhs/bmh-faculty/images/CfE-logo-150px.jpg);
+background-size: contain;
+background-repeat: no-repeat;
+position: absolute;
+right:0em;bottom:.3em;
+}
+</style>
+<script>(function () {
+  let tries = 0
+  function addLogo () {
+    if (typeof slideshow === 'undefined') {
+      tries += 1
+      if (tries < 10) {
+        setTimeout(addLogo, 100)
+      }
+    } else {
+      document.querySelectorAll('.remark-slide-content:not(.title-slide):not(.inverse):not(.hide_logo)')
+        .forEach(function (slide) {
+          const logo = document.createElement('div')
+          logo.classList = 'xaringan-extra-logo'
+          logo.href = null
+          slide.appendChild(logo)
+        })
+    }
+  }
+  document.addEventListener('DOMContentLoaded', addLogo)
+})()</script>
+</div>
+
+# Structure
+
+## 1. Why Web scraping?
+
+## 2. Intro to HTML/CSS
+
+## 3. Web scraping with rvest
+
+---
+
+class: inverse, middle, center
+
+# Why Web scraping?
+
+---
+
+## Why Web scraping?
+
+- There's lots of useful information online
+
+- Not everything is a CSV file!
+
+- Faster / less error-prone than copying data manually
+
+- Fun
+
+---
+
+## Motivating example
+
+.pull-left[![BNF logo](https://bnf.nice.org.uk/images/bnf-logo.png)
+
+British National Formulary
+
+.small[
+- https://bnf.nice.org.uk/drug/
+- One page per drug
+- Drug dose indications
+]
+]
+
+.pull-right[![BNF webpage screenshot](bnf-screenshot.png)]
+
+---
+
+class: inverse, middle, center
+
+# HTML for dummies
+
+---
+
+### Example HTML document
+
+```html
+&lt;HTML&gt;
+  &lt;HEAD&gt;
+    &lt;TITLE&gt;The title of my Web page&lt;/TITLE&gt;
+  &lt;/HEAD&gt;
+  &lt;BODY&gt;
+    &lt;H1&gt;A heading&lt;/H1&gt;
+    &lt;P&gt;A paragraph about something.&lt;/P&gt;
+    &lt;P&gt;A second paragraph about something &lt;em&gt;else&lt;/em&gt;&lt;/P&gt;
+    &lt;IMG SRC="logo.jpg" ALT="CfE logo"&gt;
+    &lt;UL&gt; &lt;!-- This is an unordered list --&gt;
+      &lt;LI&gt;A &lt;A HREF="https://cfe.manchester.ac.uk"&gt;hyperlink&lt;/A&gt;.
+      &lt;LI&gt;Another list item&lt;/LI&gt;
+    &lt;/UL&gt;
+  &lt;/BODY&gt;
+&lt;/HTML&gt;
+```
+
+---
+
+### Example HTML document
+
+&lt;iframe src="example.html" style="width:80%; height: 70%"&gt;&lt;/iframe&gt;
+
+---
+
+### Example HTML document
+
+```html
+&lt;HTML&gt;
+  &lt;HEAD&gt;
+    &lt;TITLE&gt;The title of my Web page&lt;/TITLE&gt;
+  &lt;/HEAD&gt;
+  &lt;BODY&gt;
+    &lt;H1 ID="headline"&gt;A heading&lt;/H1&gt;
+    &lt;P CLASS="intro"&gt;A paragraph about something.&lt;/P&gt;
+    &lt;P&gt;A second paragraph about something &lt;em&gt;else&lt;/em&gt;&lt;/P&gt;
+    &lt;IMG SRC="logo.jpg" ALT="CfE logo" CLASS="logo"&gt;
+    &lt;UL&gt; &lt;!-- This is an unordered list --&gt;
+      &lt;LI&gt;A &lt;A HREF="https://cfe.manchester.ac.uk"&gt;hyperlink&lt;/A&gt;.
+      &lt;LI&gt;Another list item&lt;/LI&gt;
+    &lt;/UL&gt;
+  &lt;/BODY&gt;
+&lt;/HTML&gt;
+```
+
+---
+
+### Cascading style sheets (CSS)
+
+Use **tags**, **classes** and **ids** to identify objects in the DOM.
+
+_e.g._ Select the headline text:
+
+- `h1`
+- `h1#headline` &amp;nbsp;(or&amp;nbsp; `#headline`)
+- `body:first-child`
+
+_e.g._ Select the introduction paragraph:
+
+- `p.intro` &amp;nbsp;(or&amp;nbsp; `.intro`)
+- `p:first-of-type`
+- `h1+p`
+- `body:nth-child(2)`
+
+---
+
+### Cascading style sheets (CSS)
+
+Style:
+
+1. change the typeface
+2. centre the headline
+3. highlight the intro paragraph
+4. shrink the logo image
+
+Add the following in `&lt;style&gt; &lt;/style&gt;` tags:
+
+```css
+body { font-family: 'Comic Sans MS'; }
+h1#headline { text-align: center; }
+.intro { background-color: yellow; }
+.logo { width: 100px; }
+```
+
+---
+
+### Example HTML document with CSS
+
+&lt;iframe src="example2.html" style="width:80%; height: 70%;"&gt;&lt;/iframe&gt;
+
+---
+
+### The element inspector
+
+Explore the document object model (DOM) of any Web page:
+
+![](https://wd.imgix.net/image/admin/yDROFVw6p2poGhkOdFKu.png?auto=format&amp;w=600)
+
+---
+
+### SelectorGadget
+
+https://rvest.tidyverse.org/articles/selectorgadget.html
+
+&lt;img src="https://rvest.tidyverse.org/articles/selectorgadget-2-s.png" width="60%" /&gt;
+
+---
+
+class: inverse, middle, center
+
+# Web scraping with rvest
+
+---
+
+### Web scraping with rvest
+
+
+```r
+library(rvest)
+example &lt;- read_html('example.html')
+```
+
+```
+# {html_document}
+# &lt;html&gt;
+# [1] &lt;head&gt;\n&lt;meta http-equiv="Content-Type" content="text/html; charset=UTF-8 ...
+# [2] &lt;body&gt;\r\n    &lt;h1 id="headline"&gt;A heading&lt;/h1&gt;\r\n    &lt;p class="intro"&gt;A  ...
+```
+
+```r
+example %&gt;% html_element('.intro')
+```
+
+```
+# {html_node}
+# &lt;p class="intro"&gt;
+```
+
+```r
+example %&gt;% html_element('.intro') %&gt;% html_text()
+```
+
+```
+# [1] "A paragraph about something."
+```
+
+---
+
+### Web scraping with rvest
+
+
+```r
+drug_index &lt;- read_html('https://bnf.nice.org.uk/drug/')
+drug_links &lt;- drug_index %&gt;% html_elements('.row ul li a')
+drugs &lt;- data.frame(name = html_text2(drug_links),
+                    path = html_attr(drug_links, 'href'))
+head(drugs)
+```
+
+```
+# A tibble: 6 x 2
+  name                                      path                                
+  &lt;chr&gt;                                     &lt;chr&gt;                               
+1 ABACAVIR                                  abacavir.html                       
+2 ABACAVIR WITH DOLUTEGRAVIR AND LAMIVUDINE abacavir-with-dolutegravir-and-lami~
+3 ABACAVIR WITH LAMIVUDINE                  abacavir-with-lamivudine.html       
+4 ABACAVIR WITH LAMIVUDINE AND ZIDOVUDINE   abacavir-with-lamivudine-and-zidovu~
+5 ABATACEPT                                 abatacept.html                      
+6 ABEMACICLIB                               abemaciclib.html                    
+```
+
+---
+
+### Web scraping with rvest
+
+
+```r
+library(tidyverse)
+scrape_drug &lt;- function(path) {
+  webpage &lt;- read_html(file.path('https://bnf.nice.org.uk/drug/', path))
+  name_of_drug &lt;- webpage %&gt;% html_element('h1') %&gt;% html_text2
+  condition_grp &lt;- webpage %&gt;% html_elements('.indicationAndDoseGroup')
+  condition_name &lt;- map(condition_grp, ~ html_element(.x, '.indications') %&gt;% html_text2)
+  tibble(name_of_drug,
+                 condition = map_chr(condition_name, paste, collapse = '\n'),
+                 route_grp = map(condition_grp, html_elements, '.dosage-group') %&gt;% map_depth(2, as.list)) %&gt;%
+    unnest(route_grp) %&gt;%
+    mutate(route = map_chr(route_grp, ~ html_elements(.x, 'span.routesOfAdministration') %&gt;% html_text2),
+           patient_grp = map(route_grp, html_elements, 'li.dose') %&gt;% map_depth(2, as.list)) %&gt;%
+    unnest(patient_grp) %&gt;%
+    mutate(patient = map_chr(patient_grp, ~ html_element(.x, '.patientGroup span') %&gt;% html_text2),
+           dose = map_chr(patient_grp, ~ html_elements(.x, 'p') %&gt;% html_text2)) %&gt;%
+    select(-ends_with('_grp'))
+}
+```
+
+---
+
+### Ibuprofen example
+
+
+```r
+scrape_drug('ibuprofen.html')
+```
+
+```
+# # A tibble: 24 x 5
+#    name_of_drug condition              route        patient   dose              
+#    &lt;chr&gt;        &lt;chr&gt;                  &lt;chr&gt;        &lt;chr&gt;     &lt;chr&gt;             
+#  1 IBUPROFEN    "Pain and inflammatio~ By mouth us~ Adult     Initially 300–400~
+#  2 IBUPROFEN    "Pain and inflammatio~ By mouth us~ Adult     1.6 g once daily,~
+#  3 IBUPROFEN    "Acute migraine\n"     By mouth us~ Adult     400–600 mg for 1 ~
+#  4 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 3–~ 50 mg 3 times a d~
+#  5 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 6–~ 50 mg 3–4 times a~
+#  6 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 1–~ 100 mg 3 times a ~
+#  7 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 4–~ 150 mg 3 times a ~
+#  8 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 7–~ 200 mg 3 times a ~
+#  9 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 10~ 300 mg 3 times a ~
+# 10 IBUPROFEN    "Mild to moderate pai~ By mouth us~ Child 12~ Initially 300–400~
+# # ... with 14 more rows
+```
+
+---
+
+## More information
+
+- &lt;https://rvest.tidyverse.org&gt;
+
+- Blog post: _'Which film should I watch during lockdown?'_  
+&lt;https://selbydavid.com&gt;
+
+- E-mail me: &lt;david.selby@manchester.ac.uk&gt;
+
+### Upcoming R-thritis meetings
+
+&lt;dl&gt;
+&lt;dt&gt;19 November&lt;/dt&gt;
+&lt;dd&gt;Topic/presenter to be confirmed&lt;/dd&gt;
+&lt;dt&gt;3 December&lt;/dt&gt;
+&lt;dd&gt;&amp;lsquo;Advent of Code&amp;rsquo; discussion&lt;/dd&gt;
+&lt;/dl&gt;
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

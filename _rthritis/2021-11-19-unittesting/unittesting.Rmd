@@ -1,0 +1,34 @@
+---
+title: "Unit testing and continuous integration"
+description: |
+  Find bugs as soon as you create them, and implement automated testing in your analysis.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-11-19
+output:
+  distill::distill_article:
+    self_contained: false
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Resources
+
+- R package [**testthat**](https://rvest.tidyverse.org/index.html)
+- [Talk slides](resources/unit_testing.pdf) <i class="fas fa-file-pdf" title="PDF"></i>
+- [Example GitHub repository](https://github.com/Selbosh/unittesting) <i class="fa fa-github" title="GitHub"></i>
+- [testthat: Get Started with Testing](https://journal.r-project.org/archive/2011-1/RJournal_2011-1_Wickham.pdf) (Wickham, 2011)
+- Blog post: [Unit Testing in R](https://towardsdatascience.com/unit-testing-in-r-68ab9cc8d211) by André Müller
+
+```{r}
+knitr::include_url('resources/unit_testing.html')
+```
+
+

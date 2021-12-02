@@ -1069,7 +1069,7 @@ The $p$-value is about 0.5.
 
 In the second contingency table, the counts are larger, so both the exact test and the $\chi^2$ approximation are now appropriate.
 
-````{r}
+```{r}
 fisher.test(tab2)
 prop.test(tab2)
 ```
