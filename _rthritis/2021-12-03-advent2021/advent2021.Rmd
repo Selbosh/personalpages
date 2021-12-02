@@ -1,0 +1,39 @@
+---
+title: "Advent of Code 2021"
+description: |
+  The Advent of Code is a series of daily programming puzzles running up to Christmas.
+author:
+  - name: David Selby
+    url: https://www.research.manchester.ac.uk/portal/david.selby.html
+    affiliation: Centre for Epidemiology Versus Arthritis
+    affiliation_url: https://www.cfe.manchester.ac.uk
+    orcid_id: 0000-0001-8026-5663
+date: 2021-12-03
+output:
+  distill::distill_article:
+    self_contained: false
+preview: https://selbydavid.com/img/2020/adventofcode.jpg
+twitter:
+  site: '@CfEUoM'
+  creator: '@TeaStats'
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+The [Advent of Code](https://adventofcode.com) is a series of daily programming puzzles running up to Christmas.
+In this meeting we discuss the first two days' challenges from the 2021 event, comparing our approaches and techniques.
+
+## Resources
+
+- [Advent of Code web site](https://adventofcode.com)
+- [Blog post](https://selbydavid.com/2021/12/01/advent-2021/)
+- [R package **adventofcode2021**](https://github.com/Selbosh/adventofcode2021)
+- [Talk slides](resources/adventofcode.html)
+- [Warwick R User Group](https://www.meetup.com/Warwick-useRs)
+
+```{r}
+knitr::include_url('resources/adventofcode.html')
+```
