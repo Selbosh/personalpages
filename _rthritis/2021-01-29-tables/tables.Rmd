@@ -41,8 +41,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 *By James Gwinnutt and Stephanie Shoop-Worrall*
 
-- [James's example script](baseline_tables2.R) <i class="fab fa-r-project" title=".R"></i>
-- [Stevie's slides](Stevie summarising data.pptx) <i class="fas fa-file-powerpoint" title=".pptx"></i>
+- [James's example script](resources/baseline_tables2.R) <i class="fab fa-r-project" title=".R"></i>
+- [Stevie's slides](resources/Stevie summarising data.pptx) <i class="fas fa-file-powerpoint" title=".pptx"></i>
 
 ### Computing summary statistics with tidyverse
 

@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Unit testing &amp; continuous integration</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="David A. Selby" />
+    <meta name="date" content="2021-11-19" />
+    <script src="libs/header-attrs/header-attrs.js"></script>
+    <link rel="stylesheet" href="rth.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Unit testing &amp; continuous integration
+## How to find bugs as soon as you create them
+### David A. Selby
+### R-thritis Computing Group
+### 19 November 2021
+
+---
+
+
+layout: true
+class: center, middle
+
+
+
+<div>
+<style type="text/css">.xaringan-extra-logo {
+width: 67px;
+height: 50px;
+z-index: 0;
+background-image: url(https://www.cfe.manchester.ac.uk/media/mhs/bmh-faculty/images/CfE-logo-150px.jpg);
+background-size: contain;
+background-repeat: no-repeat;
+position: absolute;
+bottom:.3em;left:0.3em;
+}
+</style>
+<script>(function () {
+  let tries = 0
+  function addLogo () {
+    if (typeof slideshow === 'undefined') {
+      tries += 1
+      if (tries < 10) {
+        setTimeout(addLogo, 100)
+      }
+    } else {
+      document.querySelectorAll('.remark-slide-content:not(.title-slide):not(.inverse):not(.hide_logo)')
+        .forEach(function (slide) {
+          const logo = document.createElement('div')
+          logo.classList = 'xaringan-extra-logo'
+          logo.href = null
+          slide.appendChild(logo)
+        })
+    }
+  }
+  document.addEventListener('DOMContentLoaded', addLogo)
+})()</script>
+</div>
+
+---
+
+Typically, we test code to ensure _its output meets our expectations_.
+
+---
+
+layout: false
+
+### Great Expectations
+
+
+```r
+is_plausible &lt;- function(value, minimum = -Inf, maximum = Inf)
+  value &gt;= minimum &amp; value &lt;= maximum
+```
+
+What do you .primary[**expect**] the output to be?
+
+
+```r
+is_plausible(c(10, 37, -999), min = 0, max = 112)
+```
+
+--
+
+
+```
+# [1]  TRUE  TRUE FALSE
+```
+
+--
+
+
+```r
+is_plausible("2", min = 0, max = 10)
+```
+
+--
+
+
+```
+# [1] FALSE
+```
+
+--
+
+.footnote[Why? Because `"10" &lt; "2"` in .red[lexical] order]
+
+???
+
+Should `is_plausible.character`:
+
+1. always return `NA`?
+2. throw an error?
+3. try to coerce to numeric?
+4. always return `FALSE`? (But is it really _implausible_?)
+
+As an exercise, try sorting the vector `c(2, 3, "a", 11, "b", "+4")`
+
+---
+
+class: inverse, center, middle
+
+# Unit testing
+
+---
+
+layout: true
+
+## Unit testing in R
+
+---
+
+**Unit testing** is the process in which the smallest testable parts of source code are tested individually and independently, usually in an automated way.
+
+- Formalises the testing of code
+- Makes it easier to identify bugs when they are introduced
+- Helps ensure that the code meets all necessary criteria
+- Reassures the user that the code works correctly
+
+---
+
+**testthat** is an R package created by Hadley Wickham for the purpose of writing unit tests for R code.
+It is available on CRAN.
+
+Other unit testing packages are available (but not covered here), e.g. [**RUnit**](https://cran.r-project.org/package=RUnit), [**testrmd**](https://github.com/rmflight/testrmd).
+
+---
+
+layout: true
+
+### Unit testing with **testthat**
+
+---
+
+The **testthat** framework comprises three parts:
+
+&lt;dl&gt;&lt;dt&gt;Expectations&lt;/dt&gt;
+&lt;dd&gt;
+the core functions. They all have prefix &lt;code&gt;expect_&lt;/code&gt;
+&lt;/dd&gt;
+&lt;dt&gt;Tests&lt;/dt&gt;
+&lt;dd&gt;
+a series of expectations about one feature, wrapped in &lt;code&gt;test_that()&lt;/code&gt;
+&lt;/dd&gt;
+&lt;dt&gt;Files&lt;/dt&gt;
+&lt;dd&gt;containing a set of tests of related functionality&lt;/dd&gt;
+&lt;/dl&gt;
+
+---
+
+.primary[Expectations] in **testthat** compare an object with a reference value or property.
+If they .secondary[**do not match**], an error is thrown.
+
+.small[(If they do match, the tested object is returned, invisibly.)]
+
+- `expect_equal`
+- `expect_is`
+- `expect_length`
+- `expect_true`
+- `expect_error`
+- ...
+
+---
+
+`expect_equal` compares a number with a reference value
+
+
+```r
+hyp &lt;- 3^2 + 4^2
+expect_equal(hyp, 25) # Runs without error
+expect_equal(hyp, 26) # Throws an error:
+```
+
+```
+# Error: `hyp` not equal to 26.
+# 1/1 mismatches
+# [1] 25 - 26 == -1
+```
+
+--
+
+
+```r
+expect_equal(sqrt(2), 1.41) # Throws an error:
+```
+
+```
+# Error: sqrt(2) not equal to 1.41.
+# 1/1 mismatches
+# [1] 1.41 - 1.41 == 0.00421
+```
+
+```r
+expect_equal(sqrt(2), 1.41, tolerance = .01) # No error thrown
+```
+
+---
+
+`expect_is` checks the data type of an object
+
+
+```r
+val &lt;- 43.7
+expect_is(val, 'numeric')   # Runs without error
+expect_is(val, 'character') # Produces an error:
+```
+
+```
+# Error: `val` inherits from `'numeric'` not `'character'`.
+```
+
+`expect_length` checks the number of elements in a vector
+
+
+```r
+expect_length(letters, 26) # Runs without error
+expect_length(letters, 25) # Throws an error:
+```
+
+```
+# Error: `letters` has length 26, not length 25.
+```
+
+---
+
+Some expectation functions check against a (fixed) condition, rather than a custom reference value.
+
+
+```r
+codes &lt;- c(no = F, yes = T)
+expect_true(codes['yes'])    # Runs without error
+expect_true('yes')           # Throws an error:
+```
+
+```
+# Error: "yes" is not TRUE
+# 
+# `actual` is a character vector ('yes')
+# `expected` is a logical vector (TRUE)
+```
+
+```r
+expect_named(codes)          # Runs without error
+expect_false(as.logical(0))  # Runs without error
+```
+
+---
+
+Other such functions include `expect_error`, which checks that a function call throws an error when evaluated.
+
+.small[Analogously, there are `expect_warning`, `expect_message`, etc.]
+
+
+```r
+expect_error(3.14 + 'hello')  # Runs without error
+expect_error(3.14 &lt; 'hello')  # Throws an error:
+```
+
+```
+# Error: `3.14 &lt; "hello"` did not throw an error.
+```
+
+---
+
+layout: false
+
+### Back to our example
+
+
+```r
+expect_true( is_plausible(5, min = 0, max = 10) )   # No error
+expect_false( is_plausible(-1, min = 0, max = 1) )  # No error
+expect_true( is_plausible('2', min = 0, max = 10) ) # Error:
+```
+
+```
+# Error: is_plausible("2", min = 0, max = 10) is not TRUE
+# 
+# `actual`:   FALSE
+# `expected`: TRUE
+```
+
+--
+
+Now decide:
+
+1. Fix the code just enough to satisfy the expectation,
+2. Or: have a rethink?
+
+---
+
+### Back to our example
+
+.primary[Fix] to pass the test .small[(not recommended here; will cause `warning`s):]
+
+
+```r
+is_plausible &lt;- function(value, minimum = -Inf, maximum = Inf) {
+* value &lt;- as.numeric(value)
+  value &gt;= minimum &amp; value &lt;= maximum
+}
+expect_true( is_plausible('2', min = 0, max = 10) ) # No error
+```
+
+--
+
+Or .primary[rethink], .small[by expecting stricter handling of inputs]:
+
+
+```r
+is_plausible &lt;- function(value, minimum = -Inf, maximum = Inf) {
+* stopifnot(is.numeric(value))
+  value &gt;= minimum &amp; value &lt;= maximum
+}
+*expect_error( is_plausible('2', min = 0, max = 10) ) # No error
+```
+
+---
+
+### Writing tests
+
+
+```r
+test_that('Scalar integers', {
+  expect_true(is_plausible(5, min = 0, max = 10))
+  expect_false(is_plausible(-1, min = 0, max = 1))
+})
+```
+
+```
+# Test passed
+```
+
+```r
+test_that('Integer vectors', {
+  expect_equal(is_plausible(0:10, min = 0, max = 10),
+               rep(TRUE, 11))
+  expect_equal(is_plausible(-1:2, min = 0, max = 1),
+               c(F, T, T, F))
+})
+```
+
+```
+# Test passed
+```
+
+---
+
+### Writing tests
+
+
+```r
+test_that('Handle unusual or missing inputs', {
+  expect_error(is_plausible('2', min = 0, max = 10))
+  expect_error(is_plausible(min = 0, max = 10))
+  expect_error(is_plausible(2, min = "0", max = 10))
+  expect_error(is_plausible(2, min = 0, max = "10"))
+})
+```
+
+```
+# -- Failure (&lt;text&gt;:4:3): Handle unusual or missing inputs ----------------------
+# `is_plausible(2, min = "0", max = 10)` did not throw an error.
+# 
+# -- Failure (&lt;text&gt;:5:3): Handle unusual or missing inputs ----------------------
+# `is_plausible(2, min = 0, max = "10")` did not throw an error.
+```
+
+
+
+---
+
+## Unit testing workflows
+
+- Add a `tests/` folder to an R package
+    - run tests with `&lt;Ctrl&gt; + &lt;Shift&gt; + T`
+    - tests will also run during `R CMD CHECK`
+    
+- Or run tests locally in analysis folder:
+    - `test_file()` / `test_dir()`
+    - Re-test with every edit: `auto_test()`
+    
+- R Markdown 'test chunks' with `error=TRUE` or [**testrmd**](https://github.com/rmflight/testrmd)
+
+.footnote[Note: most documentation for **testthat** assumes you are writing a package.
+Future talk: how to do analysis as an R package...]
+
+---
+
+## Test-driven development
+
+1. Write a test **before** any other code.
+
+2. Check that the test **fails**.
+
+3. Write **enough code to make it pass**.
+
+4. Add another test and iterate steps 1–3.
+
+5. _Refactor_ the code, while ensuring it passes all tests.
+
+???
+
+In a way, `R CMD CHECK` could be considered test-driven development, because the tests your package has to pass were written long before the package.
+
+---
+
+class: center, middle, inverse
+
+# Continuous integration
+
+---
+
+layout: true
+
+## Continuous integration
+
+---
+
+In software engineering, .primary[**continuous integration (CI)**] is the practice of merging all changes to a central repository, and .secondary[automatically rebuilding &amp; testing] the code after every change.
+
+- Use version control to track/manage changes
+- Use CI software to automatically rerun/retest code
+- Identify bugs/conflicts as soon as they're created
+
+**Tools:** &lt;del style="text-decoration: line-through;"&gt;Travis CI&lt;/del&gt;, GitHub Actions, Bitbucket Pipelines, Gitlab CI/CD, Jenkins
+
+???
+
+People _used to_ recommend Travis CI, but the company sold out and stopped offering a free service.
+If browsing the web you might still find old articles talking about an R + GitHub + Travis workflow.
+
+---
+
+Make life easier for yourself:
+
+1. Project metadata in a (dummy) `DESCRIPTION` file
+2. R code in `R/` subfolder
+3. Tests in a `tests/testthat/` subfolder
+4. Run tests quickly: `test_local()` / `&lt;Ctrl&gt;+&lt;Shift&gt;+T`
+5. Use Git for version control &amp; CI for automatic testing
+
+.small[Minimal working `DESCRIPTION` file:]
+
+```yaml
+Package: blah
+Version: 0.1
+```
+
+.footnote[Example repo: https://github.com/Selbosh/unittesting]
+
+---
+
+layout: false
+class: center, middle
+
+# Thanks!
+
+Based on a [talk by Lewis Rendell](https://warwick.ac.uk/fac/sci/wdsi/events/wrug/resources/unittesting.pdf)  
+at Warwick R User Group, 2017.
+
+---
+
+class: center, middle
+
+## Next meeting
+
+Friday 3 December
+
+.big[**Advent of Code** discussion]
+
+https://adventofcode.com/
+
+Attempt days 1–2 and share your approach
+
+.footnote[See also https://selbydavid.com/2020/12/06/advent-2020/]
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
